@@ -11,7 +11,8 @@ import {
   RefreshCw,
   Info,
   Calendar,
-  CheckCircle
+  CheckCircle,
+  X
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -214,6 +215,83 @@ export default function VocabularyBook() {
           </div>
         )}
       </div>
+
+      {/* ── Mobile Word Detail Bottom Sheet ───────────────────────────── */}
+      {selectedWord && (
+        <div className="lg:hidden fixed inset-0 z-50 flex flex-col justify-end">
+          {/* Scrim */}
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setSelectedWord(null)} />
+          {/* Sheet */}
+          <div className="relative bg-[#0f0c1d] border-t border-white/10 rounded-t-3xl p-5 max-h-[80vh] overflow-y-auto space-y-4 animate-fadeIn">
+            {/* Handle bar */}
+            <div className="absolute top-3 left-1/2 -translate-x-1/2 w-10 h-1 bg-white/20 rounded-full" />
+            <button
+              onClick={() => setSelectedWord(null)}
+              className="absolute top-4 right-4 p-2 bg-white/5 rounded-xl text-gray-400 hover:text-white"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="flex justify-between items-start border-b border-white/5 pb-3 pt-2">
+              <div className="space-y-1">
+                <h3 className="text-2xl font-black text-white tracking-wide">{selectedWord.english}</h3>
+                {selectedWord.pronunciation && (
+                  <p className="text-xs font-mono text-gray-500">{selectedWord.pronunciation}</p>
+                )}
+              </div>
+              <button
+                onClick={() => handleSpeak(selectedWord.english)}
+                className="p-2.5 bg-brand-500/10 text-brand-400 rounded-xl hover:bg-brand-500/20 border border-brand-500/20 transition-all"
+              >
+                <Volume2 className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs leading-relaxed">
+              <div>
+                <span className="text-[10px] text-gray-500 font-extrabold uppercase">Bengali Meaning</span>
+                <p className="text-sm text-brand-300 font-bold mt-1 bg-brand-500/5 px-3 py-2 rounded-xl border border-brand-500/10">
+                  {selectedWord.bangla}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <span className="text-[10px] text-gray-500 font-extrabold uppercase block">Category</span>
+                  <span className="mt-1 inline-block bg-white/5 px-2.5 py-1 rounded-xl text-white font-bold border border-white/5">{selectedWord.category}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-gray-500 font-extrabold uppercase block">Part of Speech</span>
+                  <span className="mt-1 inline-block bg-white/5 px-2.5 py-1 rounded-xl text-brand-300 font-bold border border-white/5 uppercase">{selectedWord.partOfSpeech}</span>
+                </div>
+              </div>
+
+              {selectedWord.example && (
+                <div>
+                  <span className="text-[10px] text-gray-500 font-extrabold uppercase">Usage Example</span>
+                  <div className="p-3 bg-white/5 rounded-xl border border-white/5 space-y-1.5 mt-1">
+                    <p className="text-gray-200 font-medium italic">&ldquo;{selectedWord.example}&rdquo;</p>
+                    {selectedWord.exampleBangla && (
+                      <p className="text-gray-400">&ldquo;{selectedWord.exampleBangla}&rdquo;</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {selectedWord.synonyms && selectedWord.synonyms.length > 0 && (
+                <div>
+                  <span className="text-[10px] text-gray-500 font-extrabold uppercase">Synonyms</span>
+                  <div className="flex flex-wrap gap-2 mt-1.5">
+                    {selectedWord.synonyms.map((s, idx) => (
+                      <span key={idx} className="bg-white/5 px-2.5 py-1 rounded-lg text-[11px] font-bold">{s}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Content Layout Grid */}
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-5">

@@ -26,7 +26,8 @@ import VocabularyBook from './components/VocabularyBook';
 
 export default function App() {
   const [currentView, setCurrentView] = useState('dashboard');
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  // Start closed on mobile; CSS keeps sidebar visible on lg+ regardless
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [progress, setProgress] = useState({
     userId: 'default_user',
     level: 'Intermediate',
@@ -75,6 +76,12 @@ export default function App() {
   const navigateToChat = (mode) => {
     setChatMode(mode);
     setCurrentView('chat');
+    setSidebarOpen(false); // close sidebar on mobile after navigation
+  };
+
+  const navigate = (view) => {
+    setCurrentView(view);
+    setSidebarOpen(false); // close sidebar on mobile after navigation
   };
 
   return (
@@ -82,6 +89,14 @@ export default function App() {
       {/* Background glow filters */}
       <div className="glow-mesh glow-violet"></div>
       <div className="glow-mesh glow-indigo"></div>
+
+      {/* Mobile overlay backdrop — tap outside to close sidebar */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
 
       {/* Sidebar Navigation */}
       <aside className={`shrink-0 w-64 bg-brand-850/80 backdrop-blur-md border-r border-white/5 flex flex-col justify-between z-50
@@ -109,77 +124,27 @@ export default function App() {
 
           {/* Navigation Links */}
           <nav className="p-4 space-y-1.5">
-            <button
-              onClick={() => setCurrentView('dashboard')}
-              className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 ${
-                currentView === 'dashboard'
-                  ? 'bg-gradient-to-r from-brand-600/30 to-brand-500/10 border border-brand-500/30 text-white shadow-md shadow-brand-500/5'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
-              }`}
-            >
-              <LayoutDashboard className="w-5 h-5" />
-              Dashboard
-            </button>
-
-            <button
-              onClick={() => navigateToChat('Intermediate')}
-              className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 ${
-                currentView === 'chat'
-                  ? 'bg-gradient-to-r from-brand-600/30 to-brand-500/10 border border-brand-500/30 text-white shadow-md shadow-brand-500/5'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
-              }`}
-            >
-              <MessageSquare className="w-5 h-5" />
-              AI Coach Chat
-            </button>
-
-            <button
-              onClick={() => setCurrentView('writing')}
-              className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 ${
-                currentView === 'writing'
-                  ? 'bg-gradient-to-r from-brand-600/30 to-brand-500/10 border border-brand-500/30 text-white shadow-md shadow-brand-500/5'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
-              }`}
-            >
-              <FileText className="w-5 h-5" />
-              Writing Checker
-            </button>
-
-            <button
-              onClick={() => setCurrentView('grammar')}
-              className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 ${
-                currentView === 'grammar'
-                  ? 'bg-gradient-to-r from-brand-600/30 to-brand-500/10 border border-brand-500/30 text-white shadow-md shadow-brand-500/5'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
-              }`}
-            >
-              <BookOpen className="w-5 h-5" />
-              Grammar A to Z
-            </button>
-
-            <button
-              onClick={() => setCurrentView('challenges')}
-              className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 ${
-                currentView === 'challenges'
-                  ? 'bg-gradient-to-r from-brand-600/30 to-brand-500/10 border border-brand-500/30 text-white shadow-md shadow-brand-500/5'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
-              }`}
-            >
-              <Trophy className="w-5 h-5" />
-              Daily Challenges
-            </button>
-
-            <button
-              onClick={() => setCurrentView('vocabulary')}
-              className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 ${
-                currentView === 'vocabulary'
-                  ? 'bg-gradient-to-r from-brand-600/30 to-brand-500/10 border border-brand-500/30 text-white shadow-md shadow-brand-500/5'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
-              }`}
-            >
-              <BookOpen className="w-5 h-5" />
-              Vocabulary Bank
-            </button>
+            {[
+              { view: 'dashboard', icon: <LayoutDashboard className="w-5 h-5" />, label: 'Dashboard', action: () => navigate('dashboard') },
+              { view: 'chat', icon: <MessageSquare className="w-5 h-5" />, label: 'AI Coach Chat', action: () => navigateToChat('Intermediate') },
+              { view: 'writing', icon: <FileText className="w-5 h-5" />, label: 'Writing Checker', action: () => navigate('writing') },
+              { view: 'grammar', icon: <BookOpen className="w-5 h-5" />, label: 'Grammar A to Z', action: () => navigate('grammar') },
+              { view: 'challenges', icon: <Trophy className="w-5 h-5" />, label: 'Daily Challenges', action: () => navigate('challenges') },
+              { view: 'vocabulary', icon: <BookOpen className="w-5 h-5" />, label: 'Vocabulary Bank', action: () => navigate('vocabulary') },
+            ].map(({ view, icon, label, action }) => (
+              <button
+                key={view}
+                onClick={action}
+                className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 ${
+                  currentView === view
+                    ? 'bg-gradient-to-r from-brand-600/30 to-brand-500/10 border border-brand-500/30 text-white shadow-md shadow-brand-500/5'
+                    : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
+                }`}
+              >
+                {icon}
+                {label}
+              </button>
+            ))}
           </nav>
         </div>
 
@@ -250,7 +215,8 @@ export default function App() {
         </header>
 
         {/* View Switcher Container */}
-        <main className="flex-1 min-h-0 p-5 z-10 overflow-hidden flex flex-col">
+        {/* pb-16 on mobile adds space above the bottom nav bar */}
+        <main className="flex-1 min-h-0 p-3 sm:p-5 pb-20 lg:pb-5 z-10 overflow-hidden flex flex-col">
             {currentView === 'dashboard' && (
               <Dashboard 
                 progress={progress} 
@@ -292,6 +258,30 @@ export default function App() {
               <VocabularyBook />
             )}
         </main>
+
+        {/* ── Mobile Bottom Navigation Bar (hidden on lg+) ─────────────── */}
+        <nav className="lg:hidden fixed bottom-0 inset-x-0 z-50 bg-brand-900/95 backdrop-blur-xl border-t border-white/10 flex items-center justify-around px-2 py-2 safe-area-inset-bottom">
+          {[
+            { view: 'dashboard',   icon: <LayoutDashboard className="w-5 h-5" />, label: 'Home',      action: () => navigate('dashboard') },
+            { view: 'chat',        icon: <MessageSquare className="w-5 h-5" />,   label: 'Coach',     action: () => navigateToChat('Intermediate') },
+            { view: 'grammar',     icon: <BookOpen className="w-5 h-5" />,        label: 'Grammar',   action: () => navigate('grammar') },
+            { view: 'challenges',  icon: <Trophy className="w-5 h-5" />,          label: 'Challenge', action: () => navigate('challenges') },
+            { view: 'vocabulary',  icon: <BookOpen className="w-5 h-5" />,        label: 'Vocab',     action: () => navigate('vocabulary') },
+          ].map(({ view, icon, label, action }) => (
+            <button
+              key={view}
+              onClick={action}
+              className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-all ${
+                currentView === view
+                  ? 'text-brand-400'
+                  : 'text-gray-500 hover:text-gray-300'
+              }`}
+            >
+              {icon}
+              <span className="text-[9px] font-bold tracking-wide">{label}</span>
+            </button>
+          ))}
+        </nav>
       </div>
     </div>
   );

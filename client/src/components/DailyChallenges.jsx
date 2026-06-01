@@ -167,7 +167,7 @@ export default function DailyChallenges({ progress, fetchProgress }) {
   }
 
   return (
-    <div className="flex-1 min-h-0 space-y-5 overflow-y-auto pr-1 pb-2">
+    <div className="flex-1 min-h-0 space-y-5 overflow-y-auto pr-1 pb-24 lg:pb-2">
       
       {/* Title Header */}
       <div className="flex items-center justify-between">

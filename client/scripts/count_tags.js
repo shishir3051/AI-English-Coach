@@ -1,0 +1,11 @@
+const fs = require('fs');
+const p = 'src/components/VocabularyBook.jsx';
+const s = fs.readFileSync(p, 'utf8');
+const open = (s.match(/<div(\s|>|\/)/g) || []).length;
+const close = (s.match(/<\/div>/g) || []).length;
+console.log('open <div:', open);
+console.log('close </div>:', close);
+const opens = (s.match(/<[^>]+>/g) || []).length;
+const closes = (s.match(/<\/[a-zA-Z0-9-:]+>/g) || []).length;
+console.log('total opening tags (naive):', opens);
+console.log('total closing tags (naive):', closes);

@@ -101,7 +101,7 @@ export default function Dashboard({ progress, navigateToChat, setCurrentView }) 
   const chartData = buildChartData();
 
   return (
-    <div className="flex-1 min-h-0 space-y-5 overflow-y-auto pr-1 pb-2">
+    <div className="flex-1 min-h-0 space-y-5 overflow-y-auto pr-1 pb-24 lg:pb-2">
       
       {/* Top Banner */}
       <div className="glass-card p-6 rounded-3xl relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6 border-brand-500/20 shadow-xl shadow-brand-500/5">

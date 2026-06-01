@@ -113,8 +113,8 @@ export default function AICoach({ progress, initialMode, fetchProgress }) {
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
     }
   }, [messages]);
 
@@ -236,12 +236,12 @@ export default function AICoach({ progress, initialMode, fetchProgress }) {
   };
 
   return (
-    <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-4 gap-5 w-full">
+    <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-4 gap-5 w-full overflow-y-auto lg:overflow-visible pr-1 pb-24 lg:pb-0">
       
       {/* Left Column: Modes from DB */}
-      <div className="lg:col-span-1 min-w-0 flex flex-col gap-3 overflow-hidden">
+      <div className="order-2 lg:order-1 lg:col-span-1 min-w-0 flex flex-col gap-3 overflow-visible lg:overflow-hidden">
         <h3 className="text-xs font-extrabold uppercase text-gray-500 tracking-wider shrink-0">Coach Mode</h3>
-        <div className="space-y-2 overflow-y-auto flex-1 min-h-0 pr-1">
+        <div className="space-y-2 overflow-visible lg:overflow-y-auto lg:flex-1 lg:min-h-0 pr-1">
           {modesLoading ? (
             <div className="flex flex-col gap-2">
               {[...Array(7)].map((_, i) => (
@@ -268,7 +268,7 @@ export default function AICoach({ progress, initialMode, fetchProgress }) {
       </div>
 
       {/* Center Column: Chat */}
-      <div className="lg:col-span-2 min-w-0 flex flex-col bg-brand-850/20 rounded-3xl border border-white/5 overflow-hidden">
+      <div className="order-1 lg:order-2 lg:col-span-2 min-w-0 h-[calc(100dvh-11rem)] min-h-[420px] lg:h-auto lg:min-h-0 flex flex-col bg-brand-850/20 rounded-3xl border border-white/5 overflow-hidden">
         {/* Chat Header */}
         <div className="shrink-0 p-4 border-b border-white/5 flex items-center justify-between bg-brand-850/40">
           <div className="flex items-center gap-2">
@@ -342,7 +342,7 @@ export default function AICoach({ progress, initialMode, fetchProgress }) {
         </div>
 
         {/* Input Bar */}
-        <form onSubmit={handleSend} className="shrink-0 p-4 border-t border-white/5 bg-brand-850/40 flex items-center gap-2">
+        <form onSubmit={handleSend} className="shrink-0 p-3 sm:p-4 border-t border-white/5 bg-brand-850/40 flex items-center gap-2">
           <button 
             type="button"
             onClick={toggleListening}
@@ -362,7 +362,7 @@ export default function AICoach({ progress, initialMode, fetchProgress }) {
             onChange={(e) => setInput(e.target.value)}
             placeholder={isListening ? "Listening..." : "Message coach or say 'Teach Grammar'..."}
             disabled={loading}
-            className="flex-1 px-4 py-3 text-sm bg-brand-900 border border-white/10 rounded-2xl focus:border-brand-500 focus:outline-none text-white disabled:opacity-50"
+            className="min-w-0 flex-1 px-4 py-3 text-sm bg-brand-900 border border-white/10 rounded-2xl focus:border-brand-500 focus:outline-none text-white disabled:opacity-50"
           />
 
           <button 
@@ -376,7 +376,7 @@ export default function AICoach({ progress, initialMode, fetchProgress }) {
       </div>
 
       {/* Right Column: Corrections */}
-      <div className="lg:col-span-1 min-w-0 flex flex-col gap-3 overflow-hidden">
+      <div className="order-3 lg:order-3 lg:col-span-1 min-w-0 flex flex-col gap-3 overflow-visible lg:overflow-hidden">
         <h3 className="text-xs font-extrabold uppercase text-gray-500 tracking-wider shrink-0">Mistakes &amp; Diagnostics</h3>
         
         {activeCorrection ? (

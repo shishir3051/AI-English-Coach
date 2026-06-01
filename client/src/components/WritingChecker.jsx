@@ -72,7 +72,7 @@ export default function WritingChecker({ progress, fetchProgress }) {
   };
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col gap-5 overflow-hidden">
+    <div className="flex-1 min-h-0 flex flex-col gap-5 overflow-y-auto lg:overflow-hidden pb-24 lg:pb-0">
       
       {/* Title */}
       <div className="flex items-center justify-between">

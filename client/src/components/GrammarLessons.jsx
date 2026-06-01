@@ -132,7 +132,7 @@ export default function GrammarLessons({ progress, fetchProgress }) {
   }
 
   return (
-    <div className="flex-1 min-h-0 space-y-5 overflow-y-auto pr-1 pb-2">
+    <div className="flex-1 min-h-0 space-y-5 overflow-y-auto pr-1 pb-24 lg:pb-2">
       
       {!selectedLesson ? (
         // A to Z Lesson list grid
@@ -164,7 +164,7 @@ export default function GrammarLessons({ progress, fetchProgress }) {
         </div>
       ) : (
         // Lesson detail & Quiz board
-        <div className="space-y-5 animate-fadeIn overflow-y-auto pr-1 pb-2">
+        <div className="space-y-5 animate-fadeIn overflow-y-auto pr-1 pb-24 lg:pb-2">
           
           {/* Header */}
           <button 

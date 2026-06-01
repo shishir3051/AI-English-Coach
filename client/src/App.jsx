@@ -178,7 +178,7 @@ export default function App() {
         {/* Top Header Dashboard */}
         <header className="shrink-0 h-16 border-b border-white/5 flex items-center justify-between px-6 bg-brand-900/40 backdrop-blur-md z-40">
           <div className="flex items-center gap-4">
-            <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 hover:bg-white/5 rounded-xl transition-all">
+            <button onClick={() => setSidebarOpen(true)} className="hidden lg:hidden p-2 hover:bg-white/5 rounded-xl transition-all">
               <Menu className="w-6 h-6" />
             </button>
             <div className="flex items-center gap-2 text-xs bg-brand-500/10 text-brand-400 px-3 py-1.5 rounded-full border border-brand-500/20 font-bold uppercase tracking-wider">
@@ -216,7 +216,7 @@ export default function App() {
 
         {/* View Switcher Container */}
         {/* pb-16 on mobile adds space above the bottom nav bar */}
-        <main className="flex-1 min-h-0 p-3 sm:p-5 pb-20 lg:pb-5 z-10 overflow-hidden flex flex-col">
+        <main className="flex-1 min-h-0 p-3 sm:p-5 pb-24 lg:pb-5 z-10 overflow-y-auto flex flex-col">
             {currentView === 'dashboard' && (
               <Dashboard 
                 progress={progress} 

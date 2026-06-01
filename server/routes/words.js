@@ -21,20 +21,7 @@ const INITIAL_WORDS = [
   { word: "Concise", phonetic: "/kənˈsaɪs/", meaning: "Giving a lot of information clearly and in a few words.", example: "Write a concise summary of the report in two paragraphs.", bangla: "সংক্ষিপ্ত — যা অল্প কথায় অনেক কিছু বলে।", category: "adjective" }
 ];
 
-// GET /api/words — all words (seed if empty)
-router.get('/', async (req, res) => {
-  try {
-    let words = await WordOfDay.find().sort({ createdAt: 1 });
-    if (words.length === 0) {
-      await WordOfDay.insertMany(INITIAL_WORDS);
-      words = await WordOfDay.find().sort({ createdAt: 1 });
-    }
-    res.json(words);
-  } catch (error) {
-    console.error('Words fetch error:', error);
-    res.json(INITIAL_WORDS);
-  }
-});
+// ✅ IMPORTANT: Specific routes BEFORE dynamic routes ✅
 
 // GET /api/words/daily — return a word based on day of year (consistent per day)
 router.get('/daily', async (req, res) => {
@@ -61,11 +48,28 @@ router.get('/random', async (req, res) => {
       await WordOfDay.insertMany(INITIAL_WORDS);
       words = await WordOfDay.find();
     }
-    const word = words[Math.floor(Math.random() * words.length)];
-    res.json(word);
+    const randomWord = words[Math.floor(Math.random() * words.length)];
+    console.log('Random word fetched:', randomWord.word);
+    res.json(randomWord);
   } catch (error) {
     console.error('Random word error:', error);
-    res.json(INITIAL_WORDS[Math.floor(Math.random() * INITIAL_WORDS.length)]);
+    const randomWord = INITIAL_WORDS[Math.floor(Math.random() * INITIAL_WORDS.length)];
+    res.json(randomWord);
+  }
+});
+
+// GET /api/words — all words (seed if empty)
+router.get('/', async (req, res) => {
+  try {
+    let words = await WordOfDay.find().sort({ createdAt: 1 });
+    if (words.length === 0) {
+      await WordOfDay.insertMany(INITIAL_WORDS);
+      words = await WordOfDay.find().sort({ createdAt: 1 });
+    }
+    res.json(words);
+  } catch (error) {
+    console.error('Words fetch error:', error);
+    res.json(INITIAL_WORDS);
   }
 });
 
@@ -80,7 +84,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-// DELETE /api/words/:word
+// DELETE /api/words/:word (dynamic route - must be AFTER specific routes)
 router.delete('/:word', async (req, res) => {
   try {
     await WordOfDay.findOneAndDelete({ word: req.params.word });

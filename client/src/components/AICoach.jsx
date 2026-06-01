@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 
-export default function AICoach({ progress, initialMode, fetchProgress }) {
+export default function AICoach({ progress, initialMode, fetchProgress, loadSessionId }) {
   const [chatModes, setChatModes] = useState([]);
   const [modesLoading, setModesLoading] = useState(true);
   const [mode, setMode] = useState(initialMode || 'Intermediate');
@@ -29,6 +29,7 @@ export default function AICoach({ progress, initialMode, fetchProgress }) {
   const chatContainerRef = useRef(null);
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
+  const listeningRef = useRef(false);
 
   // Fetch coach modes from DB on mount
   useEffect(() => {
@@ -56,26 +57,138 @@ export default function AICoach({ progress, initialMode, fetchProgress }) {
   }, []);
 
   // Initialize Speech Recognition
-  useEffect(() => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (SpeechRecognition) {
-      const rec = new SpeechRecognition();
-      rec.continuous = false;
-      rec.interimResults = false;
-      rec.lang = 'en-US';
-      rec.onstart = () => setIsListening(true);
-      rec.onresult = (event) => setInput(event.results[0][0].transcript);
-      rec.onerror = () => setIsListening(false);
-      rec.onend = () => setIsListening(false);
-      recognitionRef.current = rec;
+useEffect(() => {
+  const SpeechRecognition =
+    window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  if (!SpeechRecognition) {
+    console.error('Speech Recognition not supported in this browser');
+    return;
+  }
+
+  const rec = new SpeechRecognition();
+
+  rec.continuous = true; // ✅ IMPORTANT FIX
+  rec.interimResults = true; // better UX
+  rec.lang = 'en-US';
+  rec.maxAlternatives = 1;
+
+  rec.onstart = () => {
+    listeningRef.current = true;
+    setIsListening(true);
+    console.log('Speech recognition active');
+  };
+
+  rec.onresult = (event) => {
+    let finalText = '';
+
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const transcript = event.results[i][0].transcript;
+
+      if (event.results[i].isFinal) {
+        finalText += transcript + ' ';
+      }
     }
-  }, []);
+
+    console.log('Speech recognized:', finalText); // Debug log
+    // 🔥 DON'T replace input fully every time (prevents stop bug)
+    setInput((prev) => (prev + finalText).trim());
+  };
+
+  rec.onerror = (e) => {
+    console.warn('Speech error:', e.error);
+    
+    // Show user-friendly error messages
+    let errorMsg = 'Speech recognition error: ';
+    switch(e.error) {
+      case 'network':
+        errorMsg += 'Network error. Check your internet connection or try a different browser.';
+        break;
+      case 'no-speech':
+        errorMsg += 'No speech detected. Please try again.';
+        break;
+      case 'audio-capture':
+        errorMsg += 'No microphone found. Please check your device.';
+        break;
+      case 'not-allowed':
+        errorMsg += 'Microphone permission denied. Please allow access in browser settings.';
+        break;
+      default:
+        errorMsg += e.error;
+    }
+    
+    console.error(errorMsg);
+    alert(errorMsg);
+    
+    listeningRef.current = false;
+    setIsListening(false);
+  };
+
+  rec.onend = () => {
+    console.log('Speech recognition ended');
+    // 🔥 auto-restart if user still wants listening
+    if (listeningRef.current) {
+      console.log('Restarting speech recognition...');
+      try {
+        rec.start();
+      } catch (e) {
+        console.warn('Could not restart:', e);
+      }
+    } else {
+      setIsListening(false);
+    }
+  };
+
+  recognitionRef.current = rec;
+}, []);
 
   // Start new chat session and set greeting when mode changes
   useEffect(() => {
     if (chatModes.length === 0) return;
 
-    const startSession = async () => {
+    // If loading a previous session, fetch its messages (only if not already loaded)
+    if (loadSessionId && sessionId !== loadSessionId) {
+      const loadSession = async () => {
+        try {
+          const res = await axios.get(`/api/sessions/${loadSessionId}`);
+          const session = res.data;
+          
+          // Load all messages from the session
+          const loadedMessages = session.messages.map((msg, idx) => ({
+            id: `msg-${idx}`,
+            role: msg.role,
+            content: msg.content,
+            correction: msg.correction || null
+          }));
+          
+          setMessages(loadedMessages);
+          setSessionId(loadSessionId);
+          
+          // Show last message as active correction if it has one
+          if (loadedMessages.length > 0) {
+            const lastMsg = loadedMessages[loadedMessages.length - 1];
+            if (lastMsg.correction) {
+              setActiveCorrection(lastMsg.correction);
+            }
+          }
+        } catch (err) {
+          console.error('Failed to load session:', err);
+          startNewSession();
+        }
+      };
+      loadSession();
+      return;
+    }
+
+    // If we already have this session loaded, don't reload it
+    if (sessionId === loadSessionId) {
+      return;
+    }
+
+    // Otherwise, start a new session
+    startNewSession();
+
+    function startNewSession() {
       // Find greeting from DB modes
       const modeData = chatModes.find(m => m.id === mode);
       const greeting = modeData ? modeData.greetingTemplate : `Hello! I am your AI English Coach. We are in ${mode} mode. Let's practice!`;
@@ -93,23 +206,24 @@ export default function AICoach({ progress, initialMode, fetchProgress }) {
       if (autoVoicePlay) handleSpeak(greeting);
 
       // Create a new persistent session in DB
-      try {
-        const res = await axios.post('/api/sessions', { userId: 'default_user', mode });
-        const newSessionId = res.data._id;
-        setSessionId(newSessionId);
+      const createSessionAsync = async () => {
+        try {
+          const res = await axios.post('/api/sessions', { userId: 'default_user', mode });
+          const newSessionId = res.data._id;
+          setSessionId(newSessionId);
 
-        // Save greeting message to DB session
-        await axios.post(`/api/sessions/${newSessionId}/messages`, {
-          role: 'assistant',
-          content: greeting
-        });
-      } catch (err) {
-        console.warn('Could not create DB session, continuing in-memory.', err.message);
-      }
-    };
-
-    startSession();
-  }, [mode, chatModes]);
+          // Save greeting message to DB session
+          await axios.post(`/api/sessions/${newSessionId}/messages`, {
+            role: 'assistant',
+            content: greeting
+          });
+        } catch (err) {
+          console.warn('Could not create DB session, continuing in-memory.', err.message);
+        }
+      };
+      createSessionAsync();
+    }
+  }, [mode, chatModes, loadSessionId, sessionId]);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -131,109 +245,215 @@ export default function AICoach({ progress, initialMode, fetchProgress }) {
     }
   };
 
-  const toggleListening = () => {
-    if (!recognitionRef.current) {
-      alert("Speech recognition is not supported in this browser. Please try Chrome, Edge, or Safari.");
-      return;
-    }
-    if (isListening) {
-      recognitionRef.current.stop();
-    } else {
-      window.speechSynthesis.cancel();
-      recognitionRef.current.start();
-    }
-  };
+const toggleListening = () => {
+  const rec = recognitionRef.current;
 
-  const handleSend = async (e) => {
-    e?.preventDefault();
-    if (!input.trim() || loading) return;
+  if (!rec) {
+    console.error('Speech recognition not supported');
+    alert("Speech recognition not supported in this browser. Try Chrome, Edge, or Safari.");
+    return;
+  }
 
-    const userMessageText = input.trim();
-    setInput('');
-    setLoading(true);
-
-    const newMsg = { id: Date.now().toString(), role: 'user', content: userMessageText };
-    setMessages(prev => [...prev, newMsg]);
-
-    // Persist user message to DB session
-    if (sessionId) {
-      try {
-        await axios.post(`/api/sessions/${sessionId}/messages`, { role: 'user', content: userMessageText });
-      } catch (err) {
-        console.warn('Could not save user message to session.', err.message);
-      }
-    }
+  if (listeningRef.current) {
+    console.log('Stopping speech recognition');
+    rec.stop();
+    listeningRef.current = false;
+    setIsListening(false);
+  } else {
+    console.log('Starting speech recognition');
+    window.speechSynthesis.cancel();
 
     try {
-      const chatHistory = messages
-        .filter(m => m.id !== 'greeting')
-        .slice(-10)
-        .map(m => ({ role: m.role, content: m.content }));
-
-      const res = await axios.post('/api/coach/chat', {
-        message: userMessageText,
-        history: chatHistory,
-        mode,
-        userId: 'default_user'
-      });
-
-      const replyData = res.data;
-      const coachMsg = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: replyData.reply,
-        correction: replyData.correction
-      };
-
-      setMessages(prev => [...prev, coachMsg]);
-
-      // Persist assistant reply to DB session
-      if (sessionId) {
-        try {
-          await axios.post(`/api/sessions/${sessionId}/messages`, {
-            role: 'assistant',
-            content: replyData.reply,
-            correction: replyData.correction || null
-          });
-        } catch (err) {
-          console.warn('Could not save assistant message to session.', err.message);
-        }
-      }
-
-      if (autoVoicePlay) handleSpeak(replyData.reply);
-      if (replyData.correction) {
-        setActiveCorrection(replyData.correction);
-      } else {
-        setActiveCorrection(null);
-      }
-
-      fetchProgress();
-    } catch (err) {
-      console.error(err);
-      setTimeout(() => {
-        const fallbackReply = `I understand you said: "${userMessageText}". (Backend fallback active)`;
-        const fallbackCorrection = {
-          original: userMessageText,
-          corrected: userMessageText,
-          explanation: "The connection to the AI server is simulated. In a live connection, this gives deep grammar corrections.",
-          betterNative: "Perfect response! Keep up the good work.",
-          pronunciationTips: "Keep voice steady.",
-          vocabularyUpgrade: "Upgrade: Express → Articulate",
-          confidenceScore: 92,
-          motivation: "Keep practicing daily to build English muscle memory!"
-        };
-        setMessages(prev => [...prev, {
-          id: (Date.now() + 1).toString(),
-          role: 'assistant',
-          content: fallbackReply,
-          correction: fallbackCorrection
-        }]);
-        if (autoVoicePlay) handleSpeak(fallbackReply);
-      }, 1000);
-    } finally {
-      setLoading(false);
+      rec.start();
+      listeningRef.current = true;
+      setIsListening(true);
+      console.log('✅ Mic is now listening...');
+    } catch (e) {
+      console.error("Failed to start speech recognition:", e);
+      alert(`Mic error: ${e.message || e}. Make sure microphone permission is enabled.`);
+      listeningRef.current = false;
+      setIsListening(false);
     }
+  }
+};
+
+ const handleSend = async (e) => {
+  e?.preventDefault();
+
+  if (!input.trim() || loading) return;
+
+  const userMessageText = input.trim();
+
+  setInput('');
+  setLoading(true);
+  setActiveCorrection(null);
+
+  const userMsg = {
+    id: Date.now().toString(),
+    role: 'user',
+    content: userMessageText
   };
+
+  const updatedMessages = [
+    ...messages,
+    userMsg
+  ];
+
+  setMessages(updatedMessages);
+
+  try {
+
+    const chatHistory =
+      updatedMessages
+        .filter(
+          m =>
+            m.role &&
+            m.id !== 'greeting'
+        )
+        .slice(-6)
+        .map(m => ({
+          role: m.role,
+          content: m.content
+        }));
+
+    console.log(
+      '📤 Sending to API:',
+      {
+        message:
+          userMessageText,
+        mode,
+        sessionId,
+        historyLength:
+          chatHistory.length
+      }
+    );
+
+    const res =
+      await axios.post(
+        '/api/coach/chat',
+        {
+          message:
+            userMessageText,
+
+          history:
+            chatHistory,
+
+          mode,
+
+          userId:
+            'default_user',
+
+          sessionId
+        },
+        {
+          timeout: 60000
+        }
+      );
+
+    const data =
+      res.data;
+
+    console.log(
+      '📥 API:',
+      data
+    );
+
+    const coachMsg = {
+      id:
+        (
+          Date.now() + 1
+        ).toString(),
+
+      role:
+        'assistant',
+
+      content:
+        data.reply ||
+        'No response',
+
+      correction:
+        data.correction ||
+        null
+    };
+
+    setMessages(
+      prev => [
+        ...prev,
+        coachMsg
+      ]
+    );
+
+    setActiveCorrection(
+      data.correction ||
+      null
+    );
+
+    if (
+      data.sessionId &&
+      data.sessionId !==
+      sessionId
+    ) {
+      setSessionId(
+        data.sessionId
+      );
+    }
+
+    if (
+      autoVoicePlay &&
+      data.reply
+    ) {
+      handleSpeak(
+        data.reply
+      );
+    }
+
+    if (
+      fetchProgress
+    ) {
+      fetchProgress();
+    }
+
+  } catch (err) {
+
+    console.error(
+      '❌ Chat API Error:',
+      err.response?.data ||
+      err.message
+    );
+
+    const fallbackMsg = {
+      id:
+        Date.now()
+          .toString(),
+
+      role:
+        'assistant',
+
+      content:
+        "Sorry, I'm having trouble responding right now. Please try again.",
+
+      correction:
+        null
+    };
+
+    setMessages(
+      prev => [
+        ...prev,
+        fallbackMsg
+      ]
+    );
+
+    setActiveCorrection(
+      null
+    );
+
+  } finally {
+
+    setLoading(
+      false
+    );
+  }
+};
 
   return (
     <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-4 gap-5 w-full overflow-y-auto lg:overflow-visible pr-1 pb-24 lg:pb-0">

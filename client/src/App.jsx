@@ -12,7 +12,8 @@ import {
   X,
   Volume2,
   Sparkles,
-  Info
+  Info,
+  Clock
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -23,6 +24,7 @@ import WritingChecker from './components/WritingChecker';
 import GrammarLessons from './components/GrammarLessons';
 import DailyChallenges from './components/DailyChallenges';
 import VocabularyBook from './components/VocabularyBook';
+import ChatHistoryPage from './components/ChatHistoryPage';
 
 export default function App() {
   const [currentView, setCurrentView] = useState('dashboard');
@@ -44,6 +46,7 @@ export default function App() {
   
   // Specific chat sub-mode state passed to AICoach.jsx
   const [chatMode, setChatMode] = useState('Intermediate');
+  const [loadSessionId, setLoadSessionId] = useState(null);
 
   // Load progress stats on mount
   const fetchProgress = async () => {
@@ -74,9 +77,18 @@ export default function App() {
   };
 
   const navigateToChat = (mode) => {
+    setLoadSessionId(null); // Clear previous session when starting new chat
     setChatMode(mode);
     setCurrentView('chat');
     setSidebarOpen(false); // close sidebar on mobile after navigation
+  };
+
+  const handleLoadSession = (sessionId, mode) => {
+    // Pass sessionId to AICoach component
+    setLoadSessionId(sessionId);
+    setChatMode(mode);
+    setCurrentView('chat');
+    setSidebarOpen(false);
   };
 
   const navigate = (view) => {
@@ -127,6 +139,7 @@ export default function App() {
             {[
               { view: 'dashboard', icon: <LayoutDashboard className="w-5 h-5" />, label: 'Dashboard', action: () => navigate('dashboard') },
               { view: 'chat', icon: <MessageSquare className="w-5 h-5" />, label: 'AI Coach Chat', action: () => navigateToChat('Intermediate') },
+              { view: 'history', icon: <Clock className="w-5 h-5" />, label: 'Chat History', action: () => navigate('history') },
               { view: 'writing', icon: <FileText className="w-5 h-5" />, label: 'Writing Checker', action: () => navigate('writing') },
               { view: 'grammar', icon: <BookOpen className="w-5 h-5" />, label: 'Grammar A to Z', action: () => navigate('grammar') },
               { view: 'challenges', icon: <Trophy className="w-5 h-5" />, label: 'Daily Challenges', action: () => navigate('challenges') },
@@ -230,6 +243,14 @@ export default function App() {
                 progress={progress} 
                 initialMode={chatMode}
                 fetchProgress={fetchProgress}
+                loadSessionId={loadSessionId}
+              />
+            )}
+
+            {currentView === 'history' && (
+              <ChatHistoryPage 
+                onLoadSession={handleLoadSession}
+                onBack={() => navigate('dashboard')}
               />
             )}
             

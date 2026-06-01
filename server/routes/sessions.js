@@ -64,9 +64,10 @@ router.get('/:id', async (req, res) => {
 // GET /api/sessions/history/:userId — get last 10 sessions for a user
 router.get('/history/:userId', async (req, res) => {
   try {
+    const limit = parseInt(req.query.limit) || 10;
     const sessions = await ChatSession.find({ userId: req.params.userId })
       .sort({ updatedAt: -1 })
-      .limit(10)
+      .limit(limit)
       .select('mode messages updatedAt isActive');
     res.json(sessions);
   } catch (error) {

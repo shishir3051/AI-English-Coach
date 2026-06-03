@@ -147,7 +147,7 @@ export default function VocabularyBook() {
         if (difficulty) params.append('difficulty', difficulty);
         if (partOfSpeech) params.append('partOfSpeech', partOfSpeech);
         
-        const response = await axios.get(`/api/vocabulary/?${params.toString()}`);
+        const response = await axios.get(`/api/vocabulary?${params.toString()}`);
         
         const data = response.data || {};
         setWords(Array.isArray(data.words) ? data.words : []);

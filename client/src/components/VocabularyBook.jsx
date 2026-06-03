@@ -86,7 +86,7 @@ export default function VocabularyBook() {
     const fetchCategories = async () => {
       try {
         const response = await axios.get('/api/vocabulary/categories');
-        setCategories(response.data);
+        setCategories(Array.isArray(response.data) ? response.data : ['Science', 'Travel', 'Everyday', 'Business', 'Education']);
       } catch (err) {
         console.warn('Could not load categories:', err.message);
         // Fallback categories
@@ -121,7 +121,7 @@ export default function VocabularyBook() {
     const fetchStats = async () => {
       try {
         const response = await axios.get('/api/vocabulary/stats');
-        setStats(response.data);
+        setStats(response.data && typeof response.data === 'object' ? response.data : { total: 0 });
       } catch (err) {
         console.warn('Could not load stats:', err.message);
         setStats({ total: 0 });
@@ -149,9 +149,10 @@ export default function VocabularyBook() {
         
         const response = await axios.get(`/api/vocabulary/?${params.toString()}`);
         
-        setWords(response.data.words);
-        setTotalPages(response.data.totalPages);
-        setTotalWords(response.data.totalWords);
+        const data = response.data || {};
+        setWords(Array.isArray(data.words) ? data.words : []);
+        setTotalPages(typeof data.totalPages === 'number' ? data.totalPages : 0);
+        setTotalWords(typeof data.totalWords === 'number' ? data.totalWords : 0);
       } catch (err) {
         console.error('Could not fetch vocabulary words:', err);
         setError(err.response?.data?.error || 'Failed to load vocabulary');
@@ -226,13 +227,15 @@ export default function VocabularyBook() {
       // Wait for voices to be loaded
       const setVoice = () => {
         const voices = window.speechSynthesis.getVoices();
+        if (!voices) return;
         const enVoice = voices.find(v => v.lang === 'en-US') || 
                        voices.find(v => v.lang.startsWith('en'));
         if (enVoice) utterance.voice = enVoice;
         window.speechSynthesis.speak(utterance);
       };
       
-      if (window.speechSynthesis.getVoices().length) {
+      const voices = window.speechSynthesis.getVoices();
+      if (voices && voices.length) {
         setVoice();
       } else {
         window.speechSynthesis.onvoiceschanged = setVoice;
@@ -320,7 +323,7 @@ export default function VocabularyBook() {
           <div className="flex items-center gap-4 bg-brand-500/10 border border-brand-500/20 px-4 py-2 rounded-2xl text-xs">
             <div>
               <span className="text-gray-400">Total Words: </span>
-              <span className="font-extrabold text-white font-mono">{stats.total.toLocaleString()}</span>
+              <span className="font-extrabold text-white font-mono">{stats.total?.toLocaleString() ?? 0}</span>
             </div>
             <div className="h-4 w-px bg-white/10" />
             <div>

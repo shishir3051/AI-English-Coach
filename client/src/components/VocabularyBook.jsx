@@ -666,8 +666,21 @@ export default function VocabularyBook() {
                     <span className="text-[10px] text-gray-500 font-extrabold uppercase">Synonyms</span>
                     <div className="flex flex-wrap gap-2 mt-2">
                       {selectedWord.synonyms.map((s, idx) => (
-                        <span key={idx} className="bg-white/5 px-3 py-1 rounded-lg text-xs font-bold">
+                        <span key={idx} className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 px-3 py-1 rounded-lg text-xs font-bold">
                           {s}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {selectedWord.antonyms && selectedWord.antonyms.length > 0 && (
+                  <div>
+                    <span className="text-[10px] text-gray-500 font-extrabold uppercase">Antonyms</span>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {selectedWord.antonyms.map((a, idx) => (
+                        <span key={idx} className="bg-rose-500/10 border border-rose-500/20 text-rose-300 px-3 py-1 rounded-lg text-xs font-bold">
+                          {a}
                         </span>
                       ))}
                     </div>
@@ -747,8 +760,21 @@ export default function VocabularyBook() {
                       <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wider">Synonyms</span>
                       <div className="flex flex-wrap gap-2 mt-2">
                         {selectedWord.synonyms.map((s, idx) => (
-                          <span key={idx} className="bg-white/5 px-3 py-1.5 rounded-lg text-xs font-bold">
+                          <span key={idx} className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 px-3 py-1.5 rounded-lg text-xs font-bold">
                             {s}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedWord.antonyms && selectedWord.antonyms.length > 0 && (
+                    <div className="pt-1">
+                      <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wider">Antonyms</span>
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {selectedWord.antonyms.map((a, idx) => (
+                          <span key={idx} className="bg-rose-500/10 border border-rose-500/20 text-rose-300 px-3 py-1.5 rounded-lg text-xs font-bold">
+                            {a}
                           </span>
                         ))}
                       </div>

@@ -10,6 +10,7 @@ const vocabularySchema = new mongoose.Schema({
   category: { type: String, required: true, index: true },
   difficulty: { type: String, default: 'beginner', enum: ['beginner','intermediate','advanced'] },
   synonyms: [{ type: String }],
+  antonyms: [{ type: String }],
 }, { timestamps: true });
 
 // Compound text index for full-text search

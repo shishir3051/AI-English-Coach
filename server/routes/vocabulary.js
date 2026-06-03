@@ -26,6 +26,7 @@ try {
     difficulty:    { type: String, default: 'beginner',
                      enum: ['beginner','intermediate','advanced'] },
     synonyms:      [{ type: String }],
+    antonyms:      [{ type: String }],
   }, { timestamps: true });
   vocabularySchema.index({ english: 'text', bangla: 'text' });
   Vocabulary = mongoose.model('Vocabulary', vocabularySchema);

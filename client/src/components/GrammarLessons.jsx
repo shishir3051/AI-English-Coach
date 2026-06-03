@@ -22,6 +22,23 @@ export default function GrammarLessons({ progress, fetchProgress }) {
   const [submitted, setSubmitted] = useState(false);
   const [quizScore, setQuizScore] = useState(0);
   const [quizFinished, setQuizFinished] = useState(false);
+  const [quizFinishNote, setQuizFinishNote] = useState('');
+
+  const getMastery = (lessonId) => {
+    const q = (progress?.quizzes || []).find((x) => x.topicId === lessonId);
+    if (!q) return 'none';
+    const pct = q.bestScore ?? Math.round(((q.score || 0) / (q.totalQuestions || 1)) * 100);
+    if (pct >= 80) return 'mastered';
+    if (pct >= 50) return 'progress';
+    return 'started';
+  };
+
+  const masteryStyles = {
+    mastered: 'ring-2 ring-emerald-500/40 bg-emerald-500/5',
+    progress: 'ring-2 ring-amber-500/30 bg-amber-500/5',
+    started: 'ring-1 ring-white/10',
+    none: '',
+  };
 
   useEffect(() => {
     const fetchLessons = async () => {
@@ -70,6 +87,7 @@ export default function GrammarLessons({ progress, fetchProgress }) {
     setSubmitted(false);
     setQuizScore(0);
     setQuizFinished(false);
+    setQuizFinishNote('');
   };
 
   const handleOptionSelect = (idx) => {
@@ -97,18 +115,26 @@ export default function GrammarLessons({ progress, fetchProgress }) {
       setSubmitted(false);
     } else {
       setQuizFinished(true);
-      
-      // Save Quiz results to database
+      const finalScore = quizScore;
+
       try {
-        await axios.post('/api/progress/quiz', {
+        const res = await axios.post('/api/progress/quiz', {
           topicId: selectedLesson.id,
           topicName: selectedLesson.title,
-          score: quizScore + (selectedOption === selectedLesson.quiz[quizIndex].answer && submitted ? 0 : 0), // handle score addition accurately
-          totalQuestions: selectedLesson.quiz.length
+          score: finalScore,
+          totalQuestions: selectedLesson.quiz.length,
         });
-        fetchProgress();
+        const pct = Math.round((finalScore / selectedLesson.quiz.length) * 100);
+        const conf = res.data?.confidenceScore;
+        setQuizFinishNote(
+          conf != null
+            ? `Confidence score is now ${conf}% (+1% for completing this quiz). Best: ${pct}%`
+            : `You scored ${pct}% on this topic.`
+        );
+        fetchProgress?.();
       } catch (err) {
         console.warn('Unable to save quiz results on server.', err.message);
+        setQuizFinishNote(`Saved locally: ${finalScore}/${selectedLesson.quiz.length} correct.`);
       }
     }
   };
@@ -145,21 +171,41 @@ export default function GrammarLessons({ progress, fetchProgress }) {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {lessons.map(lesson => (
+            {lessons.map(lesson => {
+              const mastery = getMastery(lesson.id);
+              return (
               <div 
                 key={lesson.id}
                 onClick={() => startLesson(lesson)}
-                className="glass-card glass-card-hover p-4 rounded-2xl flex items-center gap-4 cursor-pointer"
+                className={`glass-card glass-card-hover p-4 rounded-2xl flex items-center gap-4 cursor-pointer ${masteryStyles[mastery]}`}
               >
-                <div className="w-12 h-12 bg-gradient-to-tr from-brand-600 to-violet-400 text-white rounded-xl font-black text-lg flex items-center justify-center shadow-md shrink-0">
+                <div className={`w-12 h-12 rounded-xl font-black text-lg flex items-center justify-center shadow-md shrink-0 ${
+                  mastery === 'mastered'
+                    ? 'bg-emerald-600 text-white'
+                    : mastery === 'progress'
+                      ? 'bg-amber-600 text-white'
+                      : 'bg-gradient-to-tr from-brand-600 to-violet-400 text-white'
+                }`}>
                   {lesson.letter}
                 </div>
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <h3 className="text-sm font-extrabold text-white truncate">{lesson.title}</h3>
                   <p className="text-[10px] text-gray-400 truncate mt-0.5">{lesson.explanation}</p>
+                  {lesson.tags?.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {lesson.tags.slice(0, 2).map((tag) => (
+                        <span key={tag} className="text-[8px] px-1.5 py-0.5 bg-brand-500/10 text-brand-300 rounded font-bold uppercase">
+                          {tag.replace('ielts-', 'IELTS ')}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
+                {mastery === 'mastered' && (
+                  <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                )}
               </div>
-            ))}
+            );})}
           </div>
         </div>
       ) : (
@@ -319,7 +365,7 @@ export default function GrammarLessons({ progress, fetchProgress }) {
                       <p className="text-xs text-gray-500">You scored {quizScore} out of {selectedLesson.quiz.length} on this grammar check.</p>
                     </div>
                     <div className="py-2.5 px-4 bg-white/5 border border-white/5 rounded-xl font-bold text-xs text-brand-400">
-                      Confidence score updated +1%
+                      {quizFinishNote || 'Quiz saved to your progress.'}
                     </div>
                     <button
                       onClick={() => startLesson(selectedLesson)}

@@ -18,8 +18,9 @@ export default function ChatHistoryPage({ onLoadSession, onBack }) {
     setLoading(true);
     try {
       const res = await axios.get('/api/sessions/history/default_user?limit=200');
-      // Sort by updatedAt descending (most recent first)
-      const sorted = res.data.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+      const sorted = res.data
+        .filter((s) => s.messages?.some((m) => m.role === 'user'))
+        .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
       setSessions(sorted);
       setCurrentPage(1);
     } catch (err) {
@@ -94,36 +95,35 @@ export default function ChatHistoryPage({ onLoadSession, onBack }) {
   const totalMessages = sessions.reduce((acc, s) => acc + (s.messages?.length || 0), 0);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-brand-950 via-brand-900 to-brand-850 text-white overflow-hidden">
+    <div className="flex flex-col flex-1 min-h-0 w-full text-white">
       {/* Header */}
-      <div className="sticky top-0 z-20 backdrop-blur-xl bg-brand-900/80 border-b border-white/5">
-        <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={onBack}
-                className="p-2 hover:bg-white/5 rounded-lg transition-colors"
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </button>
-              <div>
-                <h1 className="text-3xl font-extrabold text-white flex items-center gap-2">
-                  <Clock className="w-8 h-8 text-brand-400" />
-                  Chat History
-                </h1>
-                <p className="text-sm text-gray-400 mt-1">
-                  {totalMessages} total messages • {sessions.length} conversations
-                </p>
-              </div>
+      <div className="shrink-0 backdrop-blur-xl bg-brand-900/80 border-b border-white/5 rounded-2xl mb-4">
+        <div className="px-3 py-4 sm:px-4 sm:py-5">
+          <div className="flex items-center gap-3 min-w-0">
+            <button
+              onClick={onBack}
+              className="shrink-0 p-2 hover:bg-white/5 rounded-lg transition-colors"
+              aria-label="Back"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl font-extrabold text-white flex items-center gap-2 truncate">
+                <Clock className="w-6 h-6 sm:w-7 sm:h-7 text-brand-400 shrink-0" />
+                Chat History
+              </h1>
+              <p className="text-xs sm:text-sm text-gray-400 mt-1 truncate">
+                {totalMessages} messages • {sessions.length} chats
+              </p>
             </div>
           </div>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+      <div className="flex-1 min-h-0 overflow-y-auto px-1 sm:px-2 pb-2">
         {/* Filter Tabs */}
-        <div className="mb-8 flex flex-wrap gap-2">
+        <div className="mb-4 sm:mb-6 flex flex-wrap gap-2">
           <button
             onClick={() => setFilter('all')}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
@@ -165,9 +165,17 @@ export default function ChatHistoryPage({ onLoadSession, onBack }) {
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {paginatedSessions.map(session => (
-                <button
+                <div
                   key={session._id}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => onLoadSession(session._id, session.mode)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      onLoadSession(session._id, session.mode);
+                    }
+                  }}
                   className={`p-5 rounded-2xl border transition-all hover:scale-105 cursor-pointer text-left group relative overflow-hidden ${getModeColor(
                     session.mode
                   )} hover:shadow-lg hover:shadow-brand-500/20`}
@@ -183,7 +191,8 @@ export default function ChatHistoryPage({ onLoadSession, onBack }) {
                       </div>
                       <button
                         onClick={(e) => handleDelete(session._id, e)}
-                        className="p-1.5 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600/30 rounded-lg text-current hover:text-red-400"
+                        className="p-1.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity hover:bg-red-600/30 rounded-lg text-current hover:text-red-400"
+                        aria-label="Delete conversation"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -201,13 +210,13 @@ export default function ChatHistoryPage({ onLoadSession, onBack }) {
                       {formatDate(session.updatedAt)}
                     </p>
                   </div>
-                </button>
+                </div>
               ))}
             </div>
 
             {/* Pagination Controls */}
             {totalPages > 1 && (
-              <div className="flex items-center justify-center gap-4 mt-12">
+              <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4 mt-8 pb-4">
                 <button
                   onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                   disabled={currentPage === 1}
@@ -240,7 +249,7 @@ export default function ChatHistoryPage({ onLoadSession, onBack }) {
                   <ChevronRight className="w-5 h-5" />
                 </button>
 
-                <p className="text-xs text-gray-400 ml-4">
+                <p className="text-xs text-gray-400 w-full text-center sm:w-auto sm:ml-4">
                   Page {currentPage} of {totalPages}
                 </p>
               </div>

@@ -1,7 +1,20 @@
 import express from 'express';
 import GrammarLesson from '../models/GrammarLesson.js';
+import { GRAMMAR_EXTRAS } from '../data/grammarExtras.js';
 
 const router = express.Router();
+
+async function ensureGrammarSeeded() {
+  let count = await GrammarLesson.countDocuments();
+  if (count === 0) {
+    await GrammarLesson.insertMany(INITIAL_GRAMMAR_SYLLABUS);
+    count = await GrammarLesson.countDocuments();
+  }
+  for (const extra of GRAMMAR_EXTRAS) {
+    const exists = await GrammarLesson.findOne({ id: extra.id });
+    if (!exists) await GrammarLesson.create(extra);
+  }
+}
 
 // The 25 lessons to seed the database if it is empty
 const INITIAL_GRAMMAR_SYLLABUS = [
@@ -727,11 +740,12 @@ seedDatabase();
 // GET /api/grammar/lessons - fetch all from MongoDB
 router.get('/lessons', async (req, res) => {
   try {
-    const lessons = await GrammarLesson.find().sort({ letter: 1 });
+    await ensureGrammarSeeded();
+    const lessons = await GrammarLesson.find().sort({ letter: 1, title: 1 });
     res.json(lessons);
   } catch (err) {
     console.error('Database fetch error, falling back to static array.', err.message);
-    res.json(INITIAL_GRAMMAR_SYLLABUS);
+    res.json([...INITIAL_GRAMMAR_SYLLABUS, ...GRAMMAR_EXTRAS]);
   }
 });
 

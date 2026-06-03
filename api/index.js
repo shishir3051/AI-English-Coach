@@ -14,6 +14,7 @@ import coachModesRoutes from '../server/routes/coachModes.js';
 import wordsRoutes from '../server/routes/words.js';
 import sessionsRoutes from '../server/routes/sessions.js';
 import vocabularyRoutes from '../server/routes/vocabulary.js';
+import ieltsRoutes from '../server/routes/ielts.js';
 
 // Load .env from server/ for local dev (Vercel uses dashboard env vars)
 const __filename = fileURLToPath(import.meta.url);
@@ -43,7 +44,7 @@ app.use(cors({
   credentials: true,
 }));
 
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({ limit: '15mb' }));
 
 // ─── MongoDB Connection (cached for serverless warm-starts) ────────────────
 let cachedConn = null;
@@ -73,8 +74,13 @@ app.get('/api/health', (_req, res) => {
   res.json({
     status: 'healthy',
     database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
-    version: '2.0.0',
+    version: '2.1.0',
     runtime: 'vercel-serverless',
+    features: {
+      ieltsProgress: true,
+      ieltsTests: true,
+      analyzeWriting: true,
+    },
   });
 });
 
@@ -87,6 +93,7 @@ app.use('/api/coach-modes', coachModesRoutes);
 app.use('/api/words',       wordsRoutes);
 app.use('/api/sessions',    sessionsRoutes);
 app.use('/api/vocabulary',  vocabularyRoutes);
+app.use('/api/ielts',       ieltsRoutes);
 
 // ─── Export for Vercel serverless ─────────────────────────────────────────
 export default app;

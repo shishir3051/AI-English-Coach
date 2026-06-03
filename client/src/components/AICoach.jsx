@@ -24,12 +24,32 @@ export default function AICoach({ progress, initialMode, fetchProgress, loadSess
   const [isListening, setIsListening] = useState(false);
   const [autoVoicePlay, setAutoVoicePlay] = useState(true);
   const [activeCorrection, setActiveCorrection] = useState(null);
+  const [activeIeltsBands, setActiveIeltsBands] = useState(null);
+  const [ieltsSpeakingPart, setIeltsSpeakingPart] = useState(null);
+  const [ieltsSession, setIeltsSession] = useState(null);
+  const [prepSeconds, setPrepSeconds] = useState(null);
+  const [speakSeconds, setSpeakSeconds] = useState(null);
+  const [mockReport, setMockReport] = useState(null);
   const [sessionId, setSessionId] = useState(null);
+  const [speechError, setSpeechError] = useState(null);
+  const [useServerStt, setUseServerStt] = useState(false);
+
+  useEffect(() => {
+    useServerSttRef.current = useServerStt;
+  }, [useServerStt]);
 
   const chatContainerRef = useRef(null);
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
   const listeningRef = useRef(false);
+  const lastSpeechErrorRef = useRef(null);
+  const useServerSttRef = useRef(false);
+  const mediaRecorderRef = useRef(null);
+  const audioStreamRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const speechBaseRef = useRef('');
+  const sessionInitKeyRef = useRef(null);
+  const browserSttBlockedRef = useRef(false);
 
   // Fetch coach modes from DB on mount
   useEffect(() => {
@@ -56,115 +76,287 @@ export default function AICoach({ progress, initialMode, fetchProgress, loadSess
     fetchModes();
   }, []);
 
-  // Initialize Speech Recognition
-useEffect(() => {
-  const SpeechRecognition =
-    window.SpeechRecognition || window.webkitSpeechRecognition;
-
-  if (!SpeechRecognition) {
-    console.error('Speech Recognition not supported in this browser');
-    return;
-  }
-
-  const rec = new SpeechRecognition();
-
-  rec.continuous = true; // ✅ IMPORTANT FIX
-  rec.interimResults = true; // better UX
-  rec.lang = 'en-US';
-  rec.maxAlternatives = 1;
-
-  rec.onstart = () => {
-    listeningRef.current = true;
-    setIsListening(true);
-    console.log('Speech recognition active');
+  const stopAudioStream = () => {
+    audioStreamRef.current?.getTracks().forEach((t) => t.stop());
+    audioStreamRef.current = null;
   };
 
-  rec.onresult = (event) => {
-    let finalText = '';
-
-    for (let i = event.resultIndex; i < event.results.length; i++) {
-      const transcript = event.results[i][0].transcript;
-
-      if (event.results[i].isFinal) {
-        finalText += transcript + ' ';
-      }
-    }
-
-    console.log('Speech recognized:', finalText); // Debug log
-    // 🔥 DON'T replace input fully every time (prevents stop bug)
-    setInput((prev) => (prev + finalText).trim());
-  };
-
-  rec.onerror = (e) => {
-    console.warn('Speech error:', e.error);
-    
-    // Show user-friendly error messages
-    let errorMsg = 'Speech recognition error: ';
-    switch(e.error) {
-      case 'network':
-        errorMsg += 'Network error. Check your internet connection or try a different browser.';
-        break;
-      case 'no-speech':
-        errorMsg += 'No speech detected. Please try again.';
-        break;
-      case 'audio-capture':
-        errorMsg += 'No microphone found. Please check your device.';
-        break;
-      case 'not-allowed':
-        errorMsg += 'Microphone permission denied. Please allow access in browser settings.';
-        break;
-      default:
-        errorMsg += e.error;
-    }
-    
-    console.error(errorMsg);
-    alert(errorMsg);
-    
+  const stopListening = () => {
     listeningRef.current = false;
     setIsListening(false);
+    try {
+      recognitionRef.current?.abort();
+    } catch {
+      /* already stopped */
+    }
+    if (mediaRecorderRef.current?.state === 'recording') {
+      try {
+        mediaRecorderRef.current.stop();
+      } catch {
+        /* ignore */
+      }
+    }
+    stopAudioStream();
   };
 
-  rec.onend = () => {
-    console.log('Speech recognition ended');
-    // 🔥 auto-restart if user still wants listening
-    if (listeningRef.current) {
-      console.log('Restarting speech recognition...');
-      try {
-        rec.start();
-      } catch (e) {
-        console.warn('Could not restart:', e);
-      }
-    } else {
-      setIsListening(false);
+  // Detect stale backend missing GET /api/coach/transcribe (no empty POST probe)
+  useEffect(() => {
+    let cancelled = false;
+    axios.get('/api/coach/transcribe').catch((err) => {
+      if (cancelled || err.response?.status !== 404) return;
+      useServerSttRef.current = true;
+      setUseServerStt(true);
+      setSpeechError(
+        'Voice transcription needs a backend restart. Stop the server on port 5000, then run: cd server && npm start'
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const transcribeRecordedAudio = async (blob, mimeType) => {
+    const base64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const dataUrl = reader.result;
+        if (typeof dataUrl !== 'string') {
+          reject(new Error('Could not read audio'));
+          return;
+        }
+        resolve(dataUrl.split(',')[1]);
+      };
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(blob);
+    });
+
+    const res = await axios.post('/api/coach/transcribe', { audio: base64, mimeType });
+    const text = res.data?.text?.trim();
+    if (text) {
+      setInput((prev) => (prev ? `${prev} ${text}` : text).trim());
+      setSpeechError(null);
     }
   };
 
-  recognitionRef.current = rec;
-}, []);
+  const stopServerRecording = async () => {
+    const recorder = mediaRecorderRef.current;
+    if (!recorder || recorder.state !== 'recording') {
+      listeningRef.current = false;
+      setIsListening(false);
+      stopAudioStream();
+      return;
+    }
 
-  // Start new chat session and set greeting when mode changes
+    listeningRef.current = false;
+    setIsListening(false);
+
+    await new Promise((resolve) => {
+      recorder.onstop = resolve;
+      recorder.stop();
+    });
+
+    stopAudioStream();
+    mediaRecorderRef.current = null;
+
+    const mimeType = recorder.mimeType || 'audio/webm';
+    const blob = new Blob(audioChunksRef.current, { type: mimeType });
+    audioChunksRef.current = [];
+
+    if (blob.size < 800) {
+      setSpeechError('Recording too short. Hold the mic longer and speak clearly.');
+      return;
+    }
+
+    try {
+      setSpeechError('Transcribing…');
+      await transcribeRecordedAudio(blob, mimeType);
+      setSpeechError(null);
+    } catch (err) {
+      console.error('Server transcription failed:', err);
+      if (err.response?.status === 404) {
+        setSpeechError(
+          'Transcribe API not found — restart the backend: stop port 5000, then run `cd server && npm start`.'
+        );
+        return;
+      }
+      setSpeechError(
+        err.response?.data?.error ||
+          'Server transcription failed. Check GEMINI_API_KEY and your connection.'
+      );
+    }
+  };
+
+  const startServerRecording = async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setSpeechError('Microphone recording is not supported in this browser.');
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioStreamRef.current = stream;
+
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/webm')
+          ? 'audio/webm'
+          : 'audio/mp4';
+
+      const recorder = new MediaRecorder(stream, { mimeType });
+      audioChunksRef.current = [];
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      recorder.start();
+      mediaRecorderRef.current = recorder;
+      listeningRef.current = true;
+      setIsListening(true);
+      setSpeechError(null);
+    } catch (err) {
+      console.error('Could not start microphone:', err);
+      setSpeechError('Microphone access denied or unavailable.');
+      listeningRef.current = false;
+      setIsListening(false);
+      stopAudioStream();
+    }
+  };
+
+  // Initialize browser Speech Recognition (Chrome/Edge only; uses Google cloud)
+  useEffect(() => {
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      useServerSttRef.current = true;
+      setUseServerStt(true);
+      return;
+    }
+
+    const rec = new SpeechRecognition();
+    rec.continuous = false;
+    rec.interimResults = true;
+    rec.lang = 'en-US';
+    rec.maxAlternatives = 1;
+
+    rec.onstart = () => {
+      lastSpeechErrorRef.current = null;
+      listeningRef.current = true;
+      setIsListening(true);
+      setSpeechError(null);
+    };
+
+    rec.onresult = (event) => {
+      let finalText = '';
+      let interimText = '';
+
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalText += transcript + ' ';
+        } else {
+          interimText += transcript;
+        }
+      }
+
+      const base = speechBaseRef.current;
+      if (finalText) {
+        const merged = `${base} ${finalText}`.trim();
+        speechBaseRef.current = merged;
+        setInput(merged);
+      } else if (interimText) {
+        setInput(`${base} ${interimText}`.trim());
+      }
+    };
+
+    rec.onerror = (e) => {
+      console.warn('Speech error:', e.error);
+      lastSpeechErrorRef.current = e.error;
+      listeningRef.current = false;
+      setIsListening(false);
+
+      if (e.error === 'no-speech') {
+        setSpeechError('No speech heard. Try again.');
+        return;
+      }
+
+      if (e.error === 'network') {
+        try {
+          rec.abort();
+        } catch {
+          /* ignore */
+        }
+        browserSttBlockedRef.current = true;
+        useServerSttRef.current = true;
+        setUseServerStt(true);
+        setSpeechError(
+          'Browser speech unavailable. Tap mic → speak → tap mic again (server transcription).'
+        );
+        return;
+      }
+
+      const messages = {
+        'audio-capture': 'No microphone found. Check your device.',
+        'not-allowed': 'Microphone blocked. Allow mic access for this site in browser settings.',
+        aborted: 'Listening stopped.',
+      };
+      setSpeechError(messages[e.error] || `Speech error: ${e.error}`);
+    };
+
+    rec.onend = () => {
+      if (!listeningRef.current) {
+        setIsListening(false);
+      }
+    };
+
+    recognitionRef.current = rec;
+
+    return () => {
+      listeningRef.current = false;
+      setIsListening(false);
+      try {
+        rec.abort();
+      } catch {
+        /* already stopped */
+      }
+      stopAudioStream();
+      if (mediaRecorderRef.current?.state === 'recording') {
+        try {
+          mediaRecorderRef.current.stop();
+        } catch {
+          /* ignore */
+        }
+      }
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
+
+  // Start new chat session when mode changes or a history session is opened (once per key)
   useEffect(() => {
     if (chatModes.length === 0) return;
 
-    // If loading a previous session, fetch its messages (only if not already loaded)
-    if (loadSessionId && sessionId !== loadSessionId) {
+    const initKey = loadSessionId ? `load:${loadSessionId}` : `new:${mode}`;
+    if (sessionInitKeyRef.current === initKey) return;
+    sessionInitKeyRef.current = initKey;
+
+    if (loadSessionId) {
       const loadSession = async () => {
         try {
           const res = await axios.get(`/api/sessions/${loadSessionId}`);
           const session = res.data;
-          
-          // Load all messages from the session
+
           const loadedMessages = session.messages.map((msg, idx) => ({
             id: `msg-${idx}`,
             role: msg.role,
             content: msg.content,
             correction: msg.correction || null
           }));
-          
+
           setMessages(loadedMessages);
           setSessionId(loadSessionId);
-          
-          // Show last message as active correction if it has one
+
           if (loadedMessages.length > 0) {
             const lastMsg = loadedMessages[loadedMessages.length - 1];
             if (lastMsg.correction) {
@@ -173,6 +365,7 @@ useEffect(() => {
           }
         } catch (err) {
           console.error('Failed to load session:', err);
+          sessionInitKeyRef.current = `new:${mode}`;
           startNewSession();
         }
       };
@@ -180,12 +373,6 @@ useEffect(() => {
       return;
     }
 
-    // If we already have this session loaded, don't reload it
-    if (sessionId === loadSessionId) {
-      return;
-    }
-
-    // Otherwise, start a new session
     startNewSession();
 
     function startNewSession() {
@@ -202,28 +389,12 @@ useEffect(() => {
 
       setMessages([greetingMsg]);
       setActiveCorrection(null);
+      setSessionId(null);
 
       if (autoVoicePlay) handleSpeak(greeting);
-
-      // Create a new persistent session in DB
-      const createSessionAsync = async () => {
-        try {
-          const res = await axios.post('/api/sessions', { userId: 'default_user', mode });
-          const newSessionId = res.data._id;
-          setSessionId(newSessionId);
-
-          // Save greeting message to DB session
-          await axios.post(`/api/sessions/${newSessionId}/messages`, {
-            role: 'assistant',
-            content: greeting
-          });
-        } catch (err) {
-          console.warn('Could not create DB session, continuing in-memory.', err.message);
-        }
-      };
-      createSessionAsync();
+      // Session is created in the DB only after the user sends their first message (via /api/coach/chat).
     }
-  }, [mode, chatModes, loadSessionId, sessionId]);
+  }, [mode, chatModes, loadSessionId]);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -232,7 +403,24 @@ useEffect(() => {
     }
   }, [messages]);
 
+  useEffect(() => {
+    if (prepSeconds === null || prepSeconds <= 0) return;
+    const t = setInterval(() => {
+      setPrepSeconds((s) => (s <= 1 ? 0 : s - 1));
+    }, 1000);
+    return () => clearInterval(t);
+  }, [prepSeconds]);
+
+  useEffect(() => {
+    if (speakSeconds === null || speakSeconds <= 0) return;
+    const t = setInterval(() => {
+      setSpeakSeconds((s) => (s <= 1 ? 0 : s - 1));
+    }, 1000);
+    return () => clearInterval(t);
+  }, [speakSeconds]);
+
   const handleSpeak = (text) => {
+    stopListening();
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
       const cleanText = text.replace(/[*_#`~[\]()]/g, '');
@@ -245,48 +433,52 @@ useEffect(() => {
     }
   };
 
-const toggleListening = () => {
-  const rec = recognitionRef.current;
-
-  if (!rec) {
-    console.error('Speech recognition not supported');
-    alert("Speech recognition not supported in this browser. Try Chrome, Edge, or Safari.");
-    return;
-  }
-
-  if (listeningRef.current) {
-    console.log('Stopping speech recognition');
-    rec.stop();
-    listeningRef.current = false;
-    setIsListening(false);
-  } else {
-    console.log('Starting speech recognition');
+  const toggleListening = async () => {
     window.speechSynthesis.cancel();
 
-    try {
-      rec.start();
-      listeningRef.current = true;
-      setIsListening(true);
-      console.log('✅ Mic is now listening...');
-    } catch (e) {
-      console.error("Failed to start speech recognition:", e);
-      alert(`Mic error: ${e.message || e}. Make sure microphone permission is enabled.`);
-      listeningRef.current = false;
-      setIsListening(false);
+    if (listeningRef.current) {
+      if (useServerStt) {
+        await stopServerRecording();
+      } else {
+        recognitionRef.current?.stop();
+        listeningRef.current = false;
+        setIsListening(false);
+      }
+      return;
     }
-  }
-};
 
- const handleSend = async (e) => {
+    if (useServerStt || browserSttBlockedRef.current || !recognitionRef.current) {
+      await startServerRecording();
+      return;
+    }
+
+    speechBaseRef.current = input;
+
+    try {
+      recognitionRef.current.start();
+      setSpeechError(null);
+    } catch (e) {
+      console.warn('Browser STT unavailable, using server fallback:', e);
+      useServerSttRef.current = true;
+      setUseServerStt(true);
+      await startServerRecording();
+    }
+  };
+
+ const handleSend = async (e, overrideMessage) => {
   e?.preventDefault();
 
-  if (!input.trim() || loading) return;
+  const userMessageText = (overrideMessage ?? input).trim();
+  if (!userMessageText || loading) return;
 
-  const userMessageText = input.trim();
+  stopListening();
+  window.speechSynthesis.cancel();
 
   setInput('');
+  speechBaseRef.current = '';
   setLoading(true);
-  setActiveCorrection(null);
+    setActiveCorrection(null);
+    setMockReport(null);
 
   const userMsg = {
     id: Date.now().toString(),
@@ -343,7 +535,10 @@ const toggleListening = () => {
           userId:
             'default_user',
 
-          sessionId
+          sessionId,
+          ieltsAction: mode === 'IELTS' && userMessageText.toLowerCase().includes('finish mock')
+            ? 'finish_mock'
+            : undefined,
         },
         {
           timeout: 60000
@@ -383,10 +578,13 @@ const toggleListening = () => {
       ]
     );
 
-    setActiveCorrection(
-      data.correction ||
-      null
-    );
+    setActiveCorrection(data.correction || null);
+    setActiveIeltsBands(data.bands || null);
+    setIeltsSpeakingPart(data.speakingPart ?? data.ieltsMock?.currentPart ?? null);
+    if (data.ieltsMock) setIeltsSession(data.ieltsMock);
+    if (userMessageText.toLowerCase().includes('finish mock') && data.bands) {
+      setMockReport(data.bands);
+    }
 
     if (
       data.sessionId &&
@@ -443,9 +641,8 @@ const toggleListening = () => {
       ]
     );
 
-    setActiveCorrection(
-      null
-    );
+    setActiveCorrection(null);
+    setActiveIeltsBands(null);
 
   } finally {
 
@@ -490,12 +687,45 @@ const toggleListening = () => {
       {/* Center Column: Chat */}
       <div className="order-1 lg:order-2 lg:col-span-2 min-w-0 h-[calc(100dvh-11rem)] min-h-[420px] lg:h-auto lg:min-h-0 flex flex-col bg-brand-850/20 rounded-3xl border border-white/5 overflow-hidden">
         {/* Chat Header */}
-        <div className="shrink-0 p-4 border-b border-white/5 flex items-center justify-between bg-brand-850/40">
-          <div className="flex items-center gap-2">
+        <div className="shrink-0 p-4 border-b border-white/5 flex items-center justify-between bg-brand-850/40 flex-wrap gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse"></span>
             <span className="text-xs font-extrabold text-white uppercase tracking-wider">{mode} Training Session</span>
+            {mode === 'IELTS' && ieltsSpeakingPart && (
+              <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full font-bold">
+                Part {ieltsSpeakingPart}
+              </span>
+            )}
           </div>
-          
+          {mode === 'IELTS' && (
+            <div className="flex flex-wrap gap-1.5">
+              {ieltsSpeakingPart === 2 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setPrepSeconds(60)}
+                    className="text-[10px] font-bold text-cyan-300 bg-cyan-500/10 px-2 py-1 rounded-lg border border-cyan-500/20"
+                  >
+                    Prep {prepSeconds != null ? `${prepSeconds}s` : '1:00'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setPrepSeconds(null); setSpeakSeconds(120); }}
+                    className="text-[10px] font-bold text-violet-300 bg-violet-500/10 px-2 py-1 rounded-lg border border-violet-500/20"
+                  >
+                    Speak {speakSeconds != null ? `${speakSeconds}s` : '2:00'}
+                  </button>
+                </>
+              )}
+              <button
+                type="button"
+                onClick={() => handleSend({ preventDefault: () => {} }, 'finish mock')}
+                className="text-[10px] font-bold text-amber-300 bg-amber-500/10 px-2 py-1 rounded-lg border border-amber-500/20"
+              >
+                End mock
+              </button>
+            </div>
+          )}
           <button 
             onClick={() => setAutoVoicePlay(!autoVoicePlay)}
             className={`p-2 rounded-xl transition-all ${
@@ -561,6 +791,13 @@ const toggleListening = () => {
           <div ref={messagesEndRef} aria-hidden="true" />
         </div>
 
+        {speechError && (
+          <p className="shrink-0 px-4 py-2 text-xs text-amber-300 bg-amber-500/10 border-t border-amber-500/20 flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>{speechError}</span>
+          </p>
+        )}
+
         {/* Input Bar */}
         <form onSubmit={handleSend} className="shrink-0 p-3 sm:p-4 border-t border-white/5 bg-brand-850/40 flex items-center gap-2">
           <button 
@@ -580,7 +817,13 @@ const toggleListening = () => {
             type="text" 
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={isListening ? "Listening..." : "Message coach or say 'Teach Grammar'..."}
+            placeholder={
+              isListening
+                ? useServerStt
+                  ? 'Recording… tap mic when done'
+                  : 'Listening…'
+                : "Message coach or say 'Teach Grammar'..."
+            }
             disabled={loading}
             className="min-w-0 flex-1 px-4 py-3 text-sm bg-brand-900 border border-white/10 rounded-2xl focus:border-brand-500 focus:outline-none text-white disabled:opacity-50"
           />
@@ -599,11 +842,47 @@ const toggleListening = () => {
       <div className="order-3 lg:order-3 lg:col-span-1 min-w-0 flex flex-col gap-3 overflow-visible lg:overflow-hidden">
         <h3 className="text-xs font-extrabold uppercase text-gray-500 tracking-wider shrink-0">Mistakes &amp; Diagnostics</h3>
         
+        {mode === 'IELTS' && ieltsSession?.cueCard && (
+          <div className="glass-card p-3 rounded-2xl border-cyan-500/20 shrink-0 text-xs text-gray-300">
+            <span className="text-[10px] font-extrabold uppercase text-cyan-400">Cue card</span>
+            <p className="mt-1">{ieltsSession.cueCard}</p>
+          </div>
+        )}
+
+        {mode === 'IELTS' && mockReport && (
+          <div className="glass-card p-4 rounded-2xl border-amber-500/30 shrink-0">
+            <span className="text-[10px] font-extrabold uppercase text-amber-300">Mock complete — final bands</span>
+            <p className="text-center mt-2 text-lg font-black text-white">Overall {mockReport.overall ?? '—'}</p>
+          </div>
+        )}
+
+        {mode === 'IELTS' && activeIeltsBands && (
+          <div className="glass-card p-4 rounded-2xl border-emerald-500/20 shrink-0">
+            <span className="text-[10px] font-extrabold uppercase text-emerald-400">IELTS Speaking bands</span>
+            <div className="grid grid-cols-2 gap-2 mt-2 text-xs">
+              {[
+                ['Fluency', activeIeltsBands.fluency],
+                ['Lexical', activeIeltsBands.lexical],
+                ['Grammar', activeIeltsBands.grammar],
+                ['Pronunciation', activeIeltsBands.pronunciation],
+              ].map(([label, val]) => (
+                <div key={label} className="bg-brand-900/60 p-2 rounded-lg text-center">
+                  <span className="text-gray-500 block text-[9px]">{label}</span>
+                  <span className="font-black text-emerald-300">{val ?? '—'}</span>
+                </div>
+              ))}
+            </div>
+            <p className="text-center mt-2 text-sm font-black text-white">
+              Overall: <span className="text-brand-400">{activeIeltsBands.overall ?? '—'}</span>
+            </p>
+          </div>
+        )}
+
         {activeCorrection ? (
           <div className="glass-card p-5 rounded-3xl space-y-4 border-brand-500/20 relative animate-fadeIn flex-1 min-h-0 overflow-y-auto">
             <div className="flex items-center justify-between border-b border-white/5 pb-3">
               <span className="text-xs font-extrabold text-brand-300 uppercase tracking-widest flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5" /> Grammatical Check
+                <Sparkles className="w-3.5 h-3.5" /> {mode === 'IELTS' ? 'Feedback' : 'Grammatical Check'}
               </span>
               <div className="bg-brand-500/20 text-brand-300 px-2.5 py-1 rounded-xl text-xs font-bold font-mono">
                 Score: {activeCorrection.confidenceScore}/100

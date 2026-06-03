@@ -13,7 +13,8 @@ const grammarLessonSchema = new mongoose.Schema({
   title: { type: String, required: true },
   explanation: { type: String, required: true },
   examples: [{ type: String }],
-  quiz: [quizItemSchema]
+  quiz: [quizItemSchema],
+  tags: [{ type: String }],
 }, { timestamps: true });
 
 export default mongoose.model('GrammarLesson', grammarLessonSchema);

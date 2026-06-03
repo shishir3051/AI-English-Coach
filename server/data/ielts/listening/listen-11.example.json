@@ -1,0 +1,16 @@
+{
+  "testId": "listen-11",
+  "title": "Train Station Announcement (example — rename or copy to listen-11.json)",
+  "audioUrl": "",
+  "transcript": "Attention please. The 10:15 express service to London Paddington will depart from platform 4 in approximately twelve minutes. Passengers with bicycles must use carriage C at the rear of the train. Ticket checks will take place before boarding. Delays on the coastal line are expected until four pm due to engineering work near Bristol.",
+  "questions": [
+    { "id": 1, "type": "mcq", "question": "Destination city?", "options": ["Manchester", "London", "Birmingham", "Leeds"], "answer": 1 },
+    { "id": 2, "type": "mcq", "question": "Departure platform?", "options": ["2", "3", "4", "5"], "answer": 2 },
+    { "id": 3, "type": "mcq", "question": "Minutes until departure?", "options": ["8", "10", "12", "15"], "answer": 2 },
+    { "id": 4, "type": "mcq", "question": "Bicycles go in carriage?", "options": ["A", "B", "C", "D"], "answer": 2 },
+    { "id": 5, "type": "mcq", "question": "Coastal delays until?", "options": ["2 pm", "3 pm", "4 pm", "5 pm"], "answer": 2 },
+    { "id": 6, "type": "mcq", "question": "Delay cause?", "options": ["Weather", "Engineering work", "Strike", "Flooding"], "answer": 1 },
+    { "id": 7, "type": "mcq", "question": "Ticket checks when?", "options": ["On train", "Before boarding", "After arrival", "Online only"], "answer": 1 },
+    { "id": 8, "type": "mcq", "question": "Train type?", "options": ["Local", "Express", "Freight", "Metro"], "answer": 1 }
+  ]
+}

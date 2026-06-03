@@ -6,7 +6,12 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "prestart": "node scripts/kill-port.js 5000",
+    "predev": "node scripts/kill-port.js 5000",
+    "dev": "nodemon server.js",
+    "restart": "node scripts/kill-port.js 5000 && node server.js",
+    "import:ielts": "node scripts/import-ielts-tests.js",
+    "import:vocab": "node scripts/import-vocabulary-supplement.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.11.4",

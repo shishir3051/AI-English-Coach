@@ -4,6 +4,12 @@
   "version": "1.0.0",
   "type": "module",
   "description": "Full-stack AI English Coach & Communication Trainer",
+  "scripts": {
+    "dev": "concurrently -n server,client -c blue,green \"npm run dev --prefix server\" \"npm run dev --prefix client\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  },
   "dependencies": {
     "@google/generative-ai": "^0.11.4",
     "cors": "^2.8.5",

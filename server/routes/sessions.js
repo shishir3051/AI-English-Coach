@@ -1,4 +1,5 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import ChatSession from '../models/ChatSession.js';
 
 const router = express.Router();
@@ -20,6 +21,17 @@ router.get('/', async (req, res) => {
 // POST /api/sessions — create a new session
 router.post('/', async (req, res) => {
   const { userId = 'default_user', mode = 'Intermediate' } = req.body;
+
+  if (mongoose.connection.readyState !== 1) {
+    return res.status(201).json({
+      _id: `local-${Date.now()}`,
+      userId,
+      mode,
+      messages: [],
+      isActive: true,
+    });
+  }
+
   try {
     // Close any existing active sessions for same user+mode
     await ChatSession.updateMany({ userId, mode, isActive: true }, { isActive: false });
@@ -61,14 +73,30 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// GET /api/sessions/history/:userId — get last 10 sessions for a user
+// GET /api/sessions/history/:userId — sessions where the user actually chatted
 router.get('/history/:userId', async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 10;
-    const sessions = await ChatSession.find({ userId: req.params.userId })
+    const userId = req.params.userId;
+
+    if (mongoose.connection.readyState === 1) {
+      await ChatSession.deleteMany({
+        userId,
+        $or: [
+          { messages: { $size: 0 } },
+          { messages: { $not: { $elemMatch: { role: 'user' } } } },
+        ],
+      });
+    }
+
+    const sessions = await ChatSession.find({
+      userId,
+      messages: { $elemMatch: { role: 'user' } },
+    })
       .sort({ updatedAt: -1 })
       .limit(limit)
       .select('mode messages updatedAt isActive');
+
     res.json(sessions);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch history', details: error.message });

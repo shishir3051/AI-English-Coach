@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   BookOpen, 
   Search, 
@@ -13,15 +13,53 @@ import {
   X,
   Home,
   Mic,
-  BookMarked,
+  Plus,
   Trophy,
   Library
 } from 'lucide-react';
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const PART_OF_SPEECH_LABELS = {
+  noun: 'Noun',
+  verb: 'Verb',
+  adjective: 'Adjective',
+  adverb: 'Adverb',
+  preposition: 'Preposition',
+  conjunction: 'Conjunction',
+  interjection: 'Interjection',
+  pronoun: 'Pronoun',
+  phrase: 'Phrase',
+  idiom: 'Idiom',
+};
+
+const FALLBACK_PARTS_OF_SPEECH = Object.entries(PART_OF_SPEECH_LABELS).map(([value, label]) => ({
+  value,
+  label,
+}));
+
+function formatPartOfSpeech(pos) {
+  if (!pos) return '—';
+  const s = String(pos).trim();
+  const lower = s.toLowerCase();
+  if (PART_OF_SPEECH_LABELS[lower]) return PART_OF_SPEECH_LABELS[lower];
+  if (/^nouns?$/i.test(s)) return 'Noun';
+  if (/^verbs?$/i.test(s)) return 'Verb';
+  if (/^(adjectives?|adj\.?)$/i.test(s)) return 'Adjective';
+  if (/^(adverbs?|adv\.?)$/i.test(s)) return 'Adverb';
+  if (/^(prepositions?|prep\.?)$/i.test(s)) return 'Preposition';
+  if (/^(conjunctions?|conj\.?)$/i.test(s)) return 'Conjunction';
+  if (/^(interjections?|intj\.?)$/i.test(s)) return 'Interjection';
+  if (/^(pronouns?|pron\.?)$/i.test(s)) return 'Pronoun';
+  if (/^phrases?$/i.test(s)) return 'Phrase';
+  if (/^idioms?$/i.test(s)) return 'Idiom';
+  return s;
+}
 
 export default function VocabularyBook() {
+  const [customWord, setCustomWord] = useState('');
+  const [addWordStatus, setAddWordStatus] = useState(null);
+  const [addWordLoading, setAddWordLoading] = useState(false);
+  const [listRefresh, setListRefresh] = useState(0);
   const [words, setWords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -31,6 +69,7 @@ export default function VocabularyBook() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   
   const [categories, setCategories] = useState([]);
+  const [partsOfSpeechOptions, setPartsOfSpeechOptions] = useState([]);
   const [stats, setStats] = useState(null);
   
   const [page, setPage] = useState(1);
@@ -46,7 +85,7 @@ export default function VocabularyBook() {
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const response = await axios.get(`${API_URL}/vocabulary/categories`);
+        const response = await axios.get('/api/vocabulary/categories');
         setCategories(response.data);
       } catch (err) {
         console.warn('Could not load categories:', err.message);
@@ -57,11 +96,31 @@ export default function VocabularyBook() {
     fetchCategories();
   }, []);
 
+  useEffect(() => {
+    const fetchPartsOfSpeech = async () => {
+      try {
+        const response = await axios.get('/api/vocabulary/parts-of-speech');
+        const fromApi = Array.isArray(response.data) ? response.data : [];
+        const countByValue = Object.fromEntries(fromApi.map((o) => [o.value, o.count]));
+        setPartsOfSpeechOptions(
+          FALLBACK_PARTS_OF_SPEECH.map((opt) => ({
+            ...opt,
+            count: countByValue[opt.value] ?? 0,
+          }))
+        );
+      } catch (err) {
+        console.warn('Could not load parts of speech:', err.message);
+        setPartsOfSpeechOptions(FALLBACK_PARTS_OF_SPEECH);
+      }
+    };
+    fetchPartsOfSpeech();
+  }, []);
+
   // Fetch stats from API
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const response = await axios.get(`${API_URL}/vocabulary/stats`);
+        const response = await axios.get('/api/vocabulary/stats');
         setStats(response.data);
       } catch (err) {
         console.warn('Could not load stats:', err.message);
@@ -88,7 +147,7 @@ export default function VocabularyBook() {
         if (difficulty) params.append('difficulty', difficulty);
         if (partOfSpeech) params.append('partOfSpeech', partOfSpeech);
         
-        const response = await axios.get(`${API_URL}/vocabulary/?${params.toString()}`);
+        const response = await axios.get(`/api/vocabulary/?${params.toString()}`);
         
         setWords(response.data.words);
         setTotalPages(response.data.totalPages);
@@ -110,12 +169,49 @@ export default function VocabularyBook() {
     }, search ? 500 : 0);
 
     return () => clearTimeout(delayDebounceFn);
-  }, [page, search, category, difficulty, partOfSpeech]);
+  }, [page, search, category, difficulty, partOfSpeech, listRefresh]);
 
   // Reset page when filters change (except page itself)
   useEffect(() => {
     setPage(1);
   }, [search, category, difficulty, partOfSpeech]);
+
+  const refreshStats = async () => {
+    try {
+      const response = await axios.get('/api/vocabulary/stats');
+      setStats(response.data);
+      const catRes = await axios.get('/api/vocabulary/categories');
+      setCategories(catRes.data);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const addWordWithAI = async (e) => {
+    e?.preventDefault();
+    const english = customWord.trim();
+    if (!english || addWordLoading) return;
+
+    setAddWordLoading(true);
+    setAddWordStatus(null);
+    try {
+      const res = await axios.post('/api/vocabulary/add', { english });
+      const word = res.data.word;
+      setCustomWord('');
+      setSearch(word.english);
+      setPage(1);
+      setSelectedWord(word);
+      setListRefresh((n) => n + 1);
+      await refreshStats();
+      setAddWordStatus(res.data.message || (res.data.created ? 'Word added' : 'Word opened'));
+      setTimeout(() => setAddWordStatus(null), 4000);
+    } catch (err) {
+      setAddWordStatus(err.response?.data?.error || 'Could not add word — try again');
+      setTimeout(() => setAddWordStatus(null), 4000);
+    } finally {
+      setAddWordLoading(false);
+    }
+  };
 
   const handleSpeak = (text) => {
     if ('speechSynthesis' in window) {
@@ -229,7 +325,7 @@ export default function VocabularyBook() {
             <div className="h-4 w-px bg-white/10" />
             <div>
               <span className="text-brand-300 font-extrabold text-sm">
-                📚 {stats.partsOfSpeech?.length || 8}+ Parts of Speech
+                📚 {stats.partsOfSpeechTypes ?? stats.partsOfSpeechOptions?.length ?? stats.partsOfSpeech?.length ?? 8} Parts of Speech
               </span>
             </div>
           </div>
@@ -261,10 +357,8 @@ export default function VocabularyBook() {
         </div>
 
         <div className={`${filtersOpen ? 'block' : 'hidden'} md:block space-y-3`}>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-            
-            {/* Search Box */}
-            <div className="relative md:col-span-1">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            <div className="relative">
               <Search className="absolute left-3.5 top-3.5 w-4 h-4 text-gray-500" />
               <input
                 type="text"
@@ -275,6 +369,36 @@ export default function VocabularyBook() {
               />
             </div>
 
+            <form onSubmit={addWordWithAI} className="flex gap-2">
+              <input
+                type="text"
+                value={customWord}
+                onChange={(e) => setCustomWord(e.target.value)}
+                placeholder="Add a new word (AI fills Bangla, example…)"
+                className="flex-1 min-w-0 px-3.5 py-2.5 bg-brand-900 border border-emerald-500/30 rounded-xl focus:border-emerald-500 focus:outline-none text-sm text-white placeholder:text-gray-500"
+                disabled={addWordLoading}
+              />
+              <button
+                type="submit"
+                disabled={addWordLoading || !customWord.trim()}
+                className="shrink-0 px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-extrabold rounded-xl flex items-center gap-1.5 transition-colors"
+              >
+                {addWordLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Sparkles className="w-4 h-4" />
+                )}
+                <span className="hidden sm:inline">{addWordLoading ? 'Adding…' : 'Add with AI'}</span>
+                <Plus className="w-4 h-4 sm:hidden" />
+              </button>
+            </form>
+          </div>
+          {addWordStatus && (
+            <p className="text-xs text-emerald-300 font-bold px-1">{addWordStatus}</p>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+
             {/* Category Filter */}
             <div className="relative">
               <select
@@ -283,6 +407,7 @@ export default function VocabularyBook() {
                 className="w-full px-3.5 py-2.5 bg-brand-900 border border-white/10 rounded-xl focus:border-brand-500 focus:outline-none text-sm text-gray-300 appearance-none cursor-pointer"
               >
                 <option value="">All Categories</option>
+                <option value="IELTS">IELTS Topics</option>
                 {categories.map((cat, i) => (
                   <option key={i} value={cat}>{cat}</option>
                 ))}
@@ -313,15 +438,12 @@ export default function VocabularyBook() {
                 className="w-full px-3.5 py-2.5 bg-brand-900 border border-white/10 rounded-xl focus:border-brand-500 focus:outline-none text-sm text-gray-300 appearance-none cursor-pointer"
               >
                 <option value="">All Parts of Speech</option>
-                <option value="noun">Noun</option>
-                <option value="verb">Verb</option>
-                <option value="adjective">Adjective</option>
-                <option value="adverb">Adverb</option>
-                <option value="preposition">Preposition</option>
-                <option value="conjunction">Conjunction</option>
-                <option value="pronoun">Pronoun</option>
-                <option value="phrase">Phrase</option>
-                <option value="idiom">Idiom</option>
+                {partsOfSpeechOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                    {opt.count != null && opt.count > 0 ? ` (${opt.count.toLocaleString()})` : ''}
+                  </option>
+                ))}
               </select>
               <div className="absolute right-3.5 top-3.5 pointer-events-none text-gray-500 text-xs">▼</div>
             </div>
@@ -399,7 +521,7 @@ export default function VocabularyBook() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-extrabold text-white text-base">{w.english}</span>
                         <span className="text-[10px] uppercase tracking-wider bg-white/5 px-2 py-0.5 rounded text-gray-400 font-bold border border-white/5">
-                          {w.partOfSpeech}
+                          {formatPartOfSpeech(w.partOfSpeech)}
                         </span>
                         <span className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded border ${getDifficultyBadge(w.difficulty)}`}>
                           {getDifficultyLabel(w.difficulty)}
@@ -519,7 +641,7 @@ export default function VocabularyBook() {
                   <div>
                     <span className="text-[10px] text-gray-500 font-extrabold uppercase block">Part of Speech</span>
                     <span className="mt-1 inline-block bg-white/5 px-3 py-1.5 rounded-xl text-brand-300 font-bold border border-white/5 uppercase text-sm">
-                      {selectedWord.partOfSpeech}
+                      {formatPartOfSpeech(selectedWord.partOfSpeech)}
                     </span>
                   </div>
                 </div>
@@ -548,6 +670,7 @@ export default function VocabularyBook() {
                     </div>
                   </div>
                 )}
+
               </div>
             </div>
           ) : (
@@ -599,7 +722,7 @@ export default function VocabularyBook() {
                     <div>
                       <span className="text-[10px] text-gray-500 font-extrabold uppercase block tracking-wider">Part of Speech</span>
                       <span className="mt-1.5 inline-block bg-white/5 px-3 py-1.5 rounded-xl text-brand-300 font-bold border border-white/5 uppercase text-sm">
-                        {selectedWord.partOfSpeech}
+                        {formatPartOfSpeech(selectedWord.partOfSpeech)}
                       </span>
                     </div>
                   </div>
@@ -631,9 +754,9 @@ export default function VocabularyBook() {
                 </div>
               </div>
 
-              <div className="p-4 bg-brand-500/5 border border-brand-500/10 text-brand-300 text-xs font-bold rounded-2xl flex items-start gap-2.5 mt-5 leading-relaxed">
+              <div className="p-4 bg-brand-500/5 border border-brand-500/10 text-brand-300 text-xs font-bold rounded-2xl flex items-start gap-2.5 leading-relaxed">
                 <Sparkles className="w-5 h-5 shrink-0 mt-0.5 text-brand-400" />
-                <span>💡 Tip: Click the speaker icon to hear pronunciation. Practice using these words in sentences to build fluency.</span>
+                <span>💡 Tip: Type a word beside Search and tap Add with AI — meaning, example, and pronunciation are saved to the dictionary.</span>
               </div>
             </div>
           ) : (

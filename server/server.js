@@ -10,6 +10,7 @@ import coachModesRoutes from './routes/coachModes.js';
 import wordsRoutes from './routes/words.js';
 import sessionsRoutes from './routes/sessions.js';
 import vocabularyRoutes from './routes/vocabulary.js';
+import ieltsRoutes from './routes/ielts.js';
 
 dotenv.config();
 
@@ -18,14 +19,27 @@ const PORT = process.env.PORT || 5000;
 
 // Enable CORS for frontend local development
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '15mb' }));
 
 // MongoDB Connection with fallback
 const mongoUri = process.env.MONGODB_URI;
 
 if (mongoUri) {
   mongoose.connect(mongoUri)
-    .then(() => console.log('✅ Successfully connected to MongoDB.'))
+    .then(async () => {
+      console.log('✅ Successfully connected to MongoDB.');
+      try {
+        const { importIeltsTestsToDb } = await import('./lib/ieltsImport.js');
+        const IeltsListeningTest = (await import('./models/IeltsListeningTest.js')).default;
+        const count = await IeltsListeningTest.countDocuments();
+        if (count === 0) {
+          const stats = await importIeltsTestsToDb();
+          console.log(`✓ IELTS tests imported: ${stats.listening} listening, ${stats.reading} reading, ${stats.writing} writing prompts`);
+        }
+      } catch (e) {
+        console.warn('⚠️ IELTS import skipped:', e.message);
+      }
+    })
     .catch(err => {
       console.warn('⚠️ MongoDB connection error. The server will use mock-fallback operations.', err.message);
     });
@@ -35,10 +49,15 @@ if (mongoUri) {
 
 // Global API Status check
 app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'healthy', 
+  res.json({
+    status: 'healthy',
     database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
-    version: '2.0.0'
+    version: '2.1.0',
+    features: {
+      ieltsProgress: true,
+      ieltsTests: true,
+      analyzeWriting: true,
+    },
   });
 });
 
@@ -51,6 +70,7 @@ app.use('/api/coach-modes', coachModesRoutes);
 app.use('/api/words', wordsRoutes);
 app.use('/api/sessions', sessionsRoutes);
 app.use('/api/vocabulary', vocabularyRoutes);
+app.use('/api/ielts', ieltsRoutes);
 
 // Start server
 app.listen(PORT, () => {
@@ -62,7 +82,16 @@ app.listen(PORT, () => {
   console.log(`   GET  /api/coach-modes`);
   console.log(`   GET  /api/words/daily`);
   console.log(`   GET  /api/progress`);
+  console.log(`   GET  /api/progress/ielts`);
+  console.log(`   PUT  /api/progress/ielts/target`);
+  console.log(`   GET  /api/ielts/listening (${10} practice tests)`);
+  console.log(`   GET  /api/ielts/reading (${10} practice tests)`);
+  console.log(`   GET  /api/ielts/writing-prompts`);
+  console.log(`   POST /api/ielts/import  (reload tests from data files)`);
+  console.log(`   POST /api/coach/analyze-writing`);
   console.log(`   POST /api/coach/chat`);
+  console.log(`   GET  /api/coach/transcribe`);
+  console.log(`   POST /api/coach/transcribe`);
   console.log(`   POST /api/sessions`);
   console.log(`   GET  /api/vocabulary`);
 });

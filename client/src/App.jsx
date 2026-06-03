@@ -10,6 +10,8 @@ import {
   GraduationCap, 
   Menu, 
   X,
+  Headphones,
+  PenLine,
   Volume2,
   Sparkles,
   Info,
@@ -25,6 +27,9 @@ import GrammarLessons from './components/GrammarLessons';
 import DailyChallenges from './components/DailyChallenges';
 import VocabularyBook from './components/VocabularyBook';
 import ChatHistoryPage from './components/ChatHistoryPage';
+import IELTSProgress from './components/IELTSProgress';
+import IELTSListening from './components/IELTSListening';
+import IELTSReading from './components/IELTSReading';
 
 export default function App() {
   const [currentView, setCurrentView] = useState('dashboard');
@@ -76,15 +81,22 @@ export default function App() {
     }
   };
 
+  const stopCoachAudio = () => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+  };
+
   const navigateToChat = (mode) => {
-    setLoadSessionId(null); // Clear previous session when starting new chat
+    if (currentView === 'chat') stopCoachAudio();
+    setLoadSessionId(null);
     setChatMode(mode);
     setCurrentView('chat');
-    setSidebarOpen(false); // close sidebar on mobile after navigation
+    setSidebarOpen(false);
   };
 
   const handleLoadSession = (sessionId, mode) => {
-    // Pass sessionId to AICoach component
+    stopCoachAudio();
     setLoadSessionId(sessionId);
     setChatMode(mode);
     setCurrentView('chat');
@@ -92,8 +104,9 @@ export default function App() {
   };
 
   const navigate = (view) => {
+    if (currentView === 'chat') stopCoachAudio();
     setCurrentView(view);
-    setSidebarOpen(false); // close sidebar on mobile after navigation
+    setSidebarOpen(false);
   };
 
   return (
@@ -138,6 +151,7 @@ export default function App() {
           <nav className="p-4 space-y-1.5">
             {[
               { view: 'dashboard', icon: <LayoutDashboard className="w-5 h-5" />, label: 'Dashboard', action: () => navigate('dashboard') },
+              { view: 'ielts', icon: <Target className="w-5 h-5" />, label: 'IELTS Progress', action: () => navigate('ielts') },
               { view: 'chat', icon: <MessageSquare className="w-5 h-5" />, label: 'AI Coach Chat', action: () => navigateToChat('Intermediate') },
               { view: 'history', icon: <Clock className="w-5 h-5" />, label: 'Chat History', action: () => navigate('history') },
               { view: 'writing', icon: <FileText className="w-5 h-5" />, label: 'Writing Checker', action: () => navigate('writing') },
@@ -191,7 +205,7 @@ export default function App() {
         {/* Top Header Dashboard */}
         <header className="shrink-0 h-16 border-b border-white/5 flex items-center justify-between px-6 bg-brand-900/40 backdrop-blur-md z-40">
           <div className="flex items-center gap-4">
-            <button onClick={() => setSidebarOpen(true)} className="hidden lg:hidden p-2 hover:bg-white/5 rounded-xl transition-all">
+            <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 hover:bg-white/5 rounded-xl transition-all" aria-label="Open menu">
               <Menu className="w-6 h-6" />
             </button>
             <div className="flex items-center gap-2 text-xs bg-brand-500/10 text-brand-400 px-3 py-1.5 rounded-full border border-brand-500/20 font-bold uppercase tracking-wider">
@@ -237,6 +251,23 @@ export default function App() {
                 setCurrentView={setCurrentView}
               />
             )}
+
+            {currentView === 'ielts' && (
+              <IELTSProgress
+                progress={progress}
+                fetchProgress={fetchProgress}
+                navigateToChat={navigateToChat}
+                setCurrentView={setCurrentView}
+              />
+            )}
+
+            {currentView === 'ielts_listen' && (
+              <IELTSListening onBack={() => navigate('ielts')} fetchProgress={fetchProgress} />
+            )}
+
+            {currentView === 'ielts_read' && (
+              <IELTSReading onBack={() => navigate('ielts')} fetchProgress={fetchProgress} />
+            )}
             
             {currentView === 'chat' && (
               <AICoach 
@@ -281,25 +312,25 @@ export default function App() {
         </main>
 
         {/* ── Mobile Bottom Navigation Bar (hidden on lg+) ─────────────── */}
-        <nav className="lg:hidden fixed bottom-0 inset-x-0 z-50 bg-brand-900/95 backdrop-blur-xl border-t border-white/10 flex items-center justify-around px-2 py-2 safe-area-inset-bottom">
+        <nav className="lg:hidden fixed bottom-0 inset-x-0 z-50 bg-brand-900/95 backdrop-blur-xl border-t border-white/10 flex items-center justify-around px-1 py-2 safe-area-inset-bottom">
           {[
-            { view: 'dashboard',   icon: <LayoutDashboard className="w-5 h-5" />, label: 'Home',      action: () => navigate('dashboard') },
-            { view: 'chat',        icon: <MessageSquare className="w-5 h-5" />,   label: 'Coach',     action: () => navigateToChat('Intermediate') },
-            { view: 'grammar',     icon: <BookOpen className="w-5 h-5" />,        label: 'Grammar',   action: () => navigate('grammar') },
-            { view: 'challenges',  icon: <Trophy className="w-5 h-5" />,          label: 'Challenge', action: () => navigate('challenges') },
-            { view: 'vocabulary',  icon: <BookOpen className="w-5 h-5" />,        label: 'Vocab',     action: () => navigate('vocabulary') },
+            { view: 'dashboard', icon: <LayoutDashboard className="w-5 h-5" />, label: 'Home', action: () => navigate('dashboard') },
+            { view: 'ielts', icon: <Target className="w-5 h-5" />, label: 'IELTS', action: () => navigate('ielts') },
+            { view: 'chat', icon: <MessageSquare className="w-5 h-5" />, label: 'Coach', action: () => navigateToChat('Intermediate') },
+            { view: 'writing', icon: <PenLine className="w-5 h-5" />, label: 'Write', action: () => navigate('writing') },
+            { view: 'grammar', icon: <BookOpen className="w-5 h-5" />, label: 'Grammar', action: () => navigate('grammar') },
           ].map(({ view, icon, label, action }) => (
             <button
               key={view}
               onClick={action}
-              className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-all ${
-                currentView === view
+              className={`flex flex-col items-center gap-0.5 min-w-0 flex-1 px-1 py-1.5 rounded-xl transition-all ${
+                currentView === view || (view === 'ielts' && (currentView === 'ielts_listen' || currentView === 'ielts_read'))
                   ? 'text-brand-400'
                   : 'text-gray-500 hover:text-gray-300'
               }`}
             >
               {icon}
-              <span className="text-[9px] font-bold tracking-wide">{label}</span>
+              <span className="text-[8px] font-bold tracking-wide truncate w-full text-center">{label}</span>
             </button>
           ))}
         </nav>

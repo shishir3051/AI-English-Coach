@@ -36,7 +36,7 @@ const defaultProgress = (userId) => ({
 });
 
 router.get('/', async (req, res) => {
-  const { userId = 'default_user' } = req.query;
+  const userId = req.user.id;
 
   if (mongoose.connection.readyState !== 1) {
     return res.json(defaultProgress(userId));
@@ -51,7 +51,7 @@ router.get('/', async (req, res) => {
 });
 
 router.get('/ielts', async (req, res) => {
-  const { userId = 'default_user' } = req.query;
+  const userId = req.user.id;
   try {
     if (mongoose.connection.readyState !== 1) {
       return res.json(defaultProgress(userId).ielts);
@@ -68,7 +68,8 @@ router.get('/ielts', async (req, res) => {
 });
 
 router.put('/ielts/target', async (req, res) => {
-  const { targetBand, userId = 'default_user' } = req.body;
+  const { targetBand } = req.body;
+  const userId = req.user.id;
   const band = Number(targetBand);
   if (!band || band < 4 || band > 9) {
     return res.status(400).json({ error: 'targetBand must be between 4 and 9' });
@@ -84,7 +85,8 @@ router.put('/ielts/target', async (req, res) => {
 });
 
 router.post('/ielts/attempt', async (req, res) => {
-  const { skill, taskType, bands, feedback, userId = 'default_user' } = req.body;
+  const { skill, taskType, bands, feedback } = req.body;
+  const userId = req.user.id;
   if (!skill) return res.status(400).json({ error: 'skill required' });
   try {
     const progress = await getOrCreateProgress(userId);
@@ -98,7 +100,8 @@ router.post('/ielts/attempt', async (req, res) => {
 });
 
 router.post('/level', async (req, res) => {
-  const { level, userId = 'default_user' } = req.body;
+  const { level } = req.body;
+  const userId = req.user.id;
 
   if (!['Beginner', 'Intermediate', 'Advanced'].includes(level)) {
     return res.status(400).json({ error: 'Invalid level value' });
@@ -115,7 +118,8 @@ router.post('/level', async (req, res) => {
 });
 
 router.post('/quiz', async (req, res) => {
-  const { topicId, topicName, score, totalQuestions, userId = 'default_user' } = req.body;
+  const { topicId, topicName, score, totalQuestions } = req.body;
+  const userId = req.user.id;
 
   if (!topicId || score === undefined || !totalQuestions) {
     return res.status(400).json({ error: 'Missing quiz details' });
@@ -153,7 +157,8 @@ router.post('/quiz', async (req, res) => {
 });
 
 router.post('/challenge', async (req, res) => {
-  const { type, score, userId = 'default_user' } = req.body;
+  const { type, score } = req.body;
+  const userId = req.user.id;
   const todayStr = new Date().toISOString().split('T')[0];
 
   try {
@@ -181,7 +186,8 @@ router.post('/challenge', async (req, res) => {
 });
 
 router.post('/word', async (req, res) => {
-  const { word, meaning, pronunciation, example, userId = 'default_user' } = req.body;
+  const { word, meaning, pronunciation, example } = req.body;
+  const userId = req.user.id;
 
   const trimmedWord = String(word || '').trim();
   const trimmedMeaning = String(meaning || '').trim();

@@ -6,7 +6,8 @@ const router = express.Router();
 
 // GET /api/sessions?userId=xxx&mode=xxx — get active session for user+mode
 router.get('/', async (req, res) => {
-  const { userId = 'default_user', mode } = req.query;
+  const { mode } = req.query;
+  const userId = req.user.id;
   try {
     const query = { userId, isActive: true };
     if (mode) query.mode = mode;
@@ -20,7 +21,8 @@ router.get('/', async (req, res) => {
 
 // POST /api/sessions — create a new session
 router.post('/', async (req, res) => {
-  const { userId = 'default_user', mode = 'Intermediate' } = req.body;
+  const { mode = 'Intermediate' } = req.body;
+  const userId = req.user.id;
 
   if (mongoose.connection.readyState !== 1) {
     return res.status(201).json({
@@ -77,7 +79,7 @@ router.get('/:id', async (req, res) => {
 router.get('/history/:userId', async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 10;
-    const userId = req.params.userId;
+    const userId = req.user.id; // Override with authenticated user id
 
     if (mongoose.connection.readyState === 1) {
       await ChatSession.deleteMany({

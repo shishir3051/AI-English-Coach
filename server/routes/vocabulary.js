@@ -9,28 +9,7 @@ import { generateVocabularyEntry } from '../services/gemini.js';
 
 const router = express.Router();
 
-let Vocabulary;
-try {
-  Vocabulary = mongoose.model('Vocabulary');
-} catch {
-  const vocabularySchema = new mongoose.Schema({
-    english:       { type: String, required: true, index: true },
-    bangla:        { type: String, required: true },
-    pronunciation: { type: String, default: '' },
-    partOfSpeech:  { type: String, default: 'noun',
-                     enum: ['noun','verb','adjective','adverb','preposition',
-                            'conjunction','interjection','pronoun','phrase','idiom'] },
-    example:       { type: String, default: '' },
-    exampleBangla: { type: String, default: '' },
-    category:      { type: String, required: true, index: true },
-    difficulty:    { type: String, default: 'beginner',
-                     enum: ['beginner','intermediate','advanced'] },
-    synonyms:      [{ type: String }],
-    antonyms:      [{ type: String }],
-  }, { timestamps: true });
-  vocabularySchema.index({ english: 'text', bangla: 'text' });
-  Vocabulary = mongoose.model('Vocabulary', vocabularySchema);
-}
+import Vocabulary from '../models/Vocabulary.js';
 
 function escapeRegex(s) {
   return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

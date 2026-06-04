@@ -15,11 +15,16 @@ import {
   Volume2,
   Sparkles,
   Info,
-  Clock
+  Clock,
+  LogOut,
+  Shield
 } from 'lucide-react';
 import axios from 'axios';
 
 // Component Imports
+import { useAuth } from './context/AuthContext';
+import AuthScreen from './components/AuthScreen';
+import VerifyEmail from './components/VerifyEmail';
 import Dashboard from './components/Dashboard';
 import AICoach from './components/AICoach';
 import WritingChecker from './components/WritingChecker';
@@ -30,14 +35,15 @@ import ChatHistoryPage from './components/ChatHistoryPage';
 import IELTSProgress from './components/IELTSProgress';
 import IELTSListening from './components/IELTSListening';
 import IELTSReading from './components/IELTSReading';
+import AdminDashboard from './components/AdminDashboard';
 
 export default function App() {
   const [currentView, setCurrentView] = useState('dashboard');
   // Start closed on mobile; CSS keeps sidebar visible on lg+ regardless
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { user, logout } = useAuth();
+  
   const [progress, setProgress] = useState({
-    userId: 'default_user',
-    level: 'Intermediate',
     streak: 3,
     confidenceScore: 78,
     correctionsCount: 12,
@@ -56,7 +62,7 @@ export default function App() {
   // Load progress stats on mount
   const fetchProgress = async () => {
     try {
-      const res = await axios.get(`/api/progress?userId=default_user`);
+      const res = await axios.get(`/api/progress`);
       if (res.data) {
         setProgress(res.data);
       }
@@ -66,8 +72,10 @@ export default function App() {
   };
 
   useEffect(() => {
-    fetchProgress();
-  }, [currentView]);
+    if (user) {
+      fetchProgress();
+    }
+  }, [currentView, user]);
 
   const handleLevelChange = async (newLevel) => {
     try {
@@ -108,6 +116,18 @@ export default function App() {
     setCurrentView(view);
     setSidebarOpen(false);
   };
+
+  // Handle email verification route
+  const path = window.location.pathname;
+  if (path.startsWith('/verify/')) {
+    const token = path.split('/verify/')[1];
+    return <VerifyEmail token={token} onVerified={() => window.location.href = '/'} />;
+  }
+
+  // Force login if not authenticated
+  if (!user) {
+    return <AuthScreen />;
+  }
 
   return (
     <div className="h-screen w-screen bg-brand-900 text-gray-100 flex relative overflow-hidden font-sans">
@@ -172,6 +192,21 @@ export default function App() {
                 {label}
               </button>
             ))}
+
+            {/* Admin-only link */}
+            {user?.role === 'admin' && (
+              <button
+                onClick={() => navigate('admin')}
+                className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 mt-2 ${
+                  currentView === 'admin'
+                    ? 'bg-gradient-to-r from-violet-600/30 to-violet-500/10 border border-violet-500/30 text-white shadow-md'
+                    : 'text-violet-400 hover:text-violet-300 hover:bg-violet-500/10 border border-transparent'
+                }`}
+              >
+                <Shield className="w-5 h-5" />
+                Admin Panel
+              </button>
+            )}
           </nav>
         </div>
 
@@ -195,6 +230,14 @@ export default function App() {
               ))}
             </div>
           </div>
+          
+          <button
+            onClick={logout}
+            className="w-full mt-4 flex items-center justify-center gap-2 py-2.5 rounded-xl border border-red-500/20 text-red-400 font-bold hover:bg-red-500/10 transition-all text-sm"
+          >
+            <LogOut className="w-4 h-4" />
+            Sign Out
+          </button>
         </div>
 
       </aside>
@@ -308,6 +351,10 @@ export default function App() {
             
             {currentView === 'vocabulary' && (
               <VocabularyBook />
+            )}
+
+            {currentView === 'admin' && user?.role === 'admin' && (
+              <AdminDashboard />
             )}
         </main>
 

@@ -11,6 +11,9 @@ import wordsRoutes from './routes/words.js';
 import sessionsRoutes from './routes/sessions.js';
 import vocabularyRoutes from './routes/vocabulary.js';
 import ieltsRoutes from './routes/ielts.js';
+import authRoutes from './routes/auth.js';
+import adminRoutes from './routes/admin.js';
+import { protect, adminOnly } from './middleware/authMiddleware.js';
 
 dotenv.config();
 
@@ -62,15 +65,19 @@ app.get('/api/health', (req, res) => {
 });
 
 // Register all routers
-app.use('/api/coach', coachRoutes);
-app.use('/api/progress', progressRoutes);
-app.use('/api/grammar', grammarRoutes);
-app.use('/api/challenges', challengesRoutes);
-app.use('/api/coach-modes', coachModesRoutes);
-app.use('/api/words', wordsRoutes);
-app.use('/api/sessions', sessionsRoutes);
-app.use('/api/vocabulary', vocabularyRoutes);
-app.use('/api/ielts', ieltsRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/admin', protect, adminOnly, adminRoutes);
+
+// Protected routes
+app.use('/api/coach', protect, coachRoutes);
+app.use('/api/progress', protect, progressRoutes);
+app.use('/api/grammar', protect, grammarRoutes);
+app.use('/api/challenges', protect, challengesRoutes);
+app.use('/api/coach-modes', protect, coachModesRoutes);
+app.use('/api/words', protect, wordsRoutes);
+app.use('/api/sessions', protect, sessionsRoutes);
+app.use('/api/vocabulary', protect, vocabularyRoutes);
+app.use('/api/ielts', protect, ieltsRoutes);
 
 // Start server
 app.listen(PORT, () => {

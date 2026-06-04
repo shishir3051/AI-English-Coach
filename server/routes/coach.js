@@ -35,7 +35,8 @@ router.post('/transcribe', async (req, res) => {
 
 router.post('/analyze-writing', async (req, res) => {
   try {
-    const { text, userId = 'default_user', taskType = 'task2' } = req.body;
+    const { text, taskType = 'task2' } = req.body;
+    const userId = req.user.id;
     if (!text?.trim()) {
       return res.status(400).json({ error: 'Text required' });
     }
@@ -77,10 +78,10 @@ router.post('/chat', async (req, res) => {
       message,
       history = [],
       mode = 'Intermediate',
-      userId = 'default_user',
       sessionId,
       ieltsAction,
     } = req.body;
+    const userId = req.user.id;
 
     if (!message?.trim()) {
       return res.status(400).json({ error: 'Message required' });

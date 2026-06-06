@@ -15,6 +15,8 @@ import wordsRoutes from '../server/routes/words.js';
 import sessionsRoutes from '../server/routes/sessions.js';
 import vocabularyRoutes from '../server/routes/vocabulary.js';
 import ieltsRoutes from '../server/routes/ielts.js';
+import authRoutes from '../server/routes/auth.js';
+import adminRoutes from '../server/routes/admin.js';
 
 // Load .env from server/ for local dev (Vercel uses dashboard env vars)
 const __filename = fileURLToPath(import.meta.url);
@@ -83,6 +85,8 @@ app.get('/api/health', (_req, res) => {
     },
   });
 });
+
+app.use('/api/auth', authRoutes);
 
 // ─── Register routes ──────────────────────────────────────────────────────
 app.use('/api/coach',       coachRoutes);

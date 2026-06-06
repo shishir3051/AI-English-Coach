@@ -69,7 +69,20 @@ export default function AuthScreen() {
         setTimeout(() => { setIsLogin(true); setSuccess(''); }, 5000);
       }
     } catch (err) {
-      setError(err.response?.data?.error || 'An error occurred. Please try again.');
+      const errData = err.response?.data;
+      let errMsg = 'An error occurred. Please try again.';
+      if (errData?.error) {
+        if (typeof errData.error === 'string') {
+          errMsg = errData.error;
+        } else if (typeof errData.error === 'object' && errData.error.message) {
+          errMsg = errData.error.message;
+        }
+      } else if (errData?.message) {
+        errMsg = errData.message;
+      } else if (err.message) {
+        errMsg = err.message;
+      }
+      setError(errMsg);
     } finally {
       setLoading(false);
     }

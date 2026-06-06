@@ -6,10 +6,14 @@ dotenv.config();
 const API_KEY = process.env.GEMINI_API_KEY;
 
 if (!API_KEY) {
-  throw new Error('GEMINI_API_KEY missing in .env');
+  console.warn('⚠️  GEMINI_API_KEY not set — AI features disabled');
 }
 
-const genAI = new GoogleGenerativeAI(API_KEY);
+const genAI = API_KEY ? new GoogleGenerativeAI(API_KEY) : null;
+
+const assertGenAI = () => {
+  if (!genAI) throw new Error('GEMINI_API_KEY not configured');
+};
 
 const MODES = {
   Beginner: 'Speak simply. Short sentences. Explain grammar clearly.',
@@ -103,6 +107,7 @@ export async function getCoachResponse({
   userLevel = 'Beginner',
   ieltsContext = null,
 }) {
+  assertGenAI();
   try {
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
     const isIelts = mode === 'IELTS';
@@ -163,6 +168,7 @@ ${isIelts ? IELTS_CHAT_JSON : STANDARD_CHAT_JSON}`;
 }
 
 export async function analyzeWriting(text, taskType = 'task2') {
+  assertGenAI();
   try {
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
@@ -316,6 +322,7 @@ ${VOCAB_ENTRY_JSON}`;
 }
 
 export async function transcribeAudio(base64Data, mimeType = 'audio/webm') {
+  assertGenAI();
   const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
   const result = await safeGenerate(() =>
     model.generateContent([

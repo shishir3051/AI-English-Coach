@@ -17,6 +17,7 @@ import vocabularyRoutes from '../server/routes/vocabulary.js';
 import ieltsRoutes from '../server/routes/ielts.js';
 import authRoutes from '../server/routes/auth.js';
 import adminRoutes from '../server/routes/admin.js';
+import { protect, adminOnly } from '../server/middleware/authMiddleware.js';
 
 // Load .env from server/ for local dev (Vercel uses dashboard env vars)
 const __filename = fileURLToPath(import.meta.url);
@@ -87,6 +88,7 @@ app.get('/api/health', (_req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/admin', protect, adminOnly, adminRoutes);
 
 // ─── Register routes ──────────────────────────────────────────────────────
 app.use('/api/coach',       coachRoutes);
@@ -101,3 +103,12 @@ app.use('/api/ielts',       ieltsRoutes);
 
 // ─── Export for Vercel serverless ─────────────────────────────────────────
 export default app;
+
+// JSON error handler so clients always get parseable errors
+app.use((err, _req, res, _next) => {
+  console.error('Unhandled error:', err);
+  res.status(err.status || 500).json({
+    error: err.message || 'Internal server error',
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
+  });
+});

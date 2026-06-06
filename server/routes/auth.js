@@ -164,7 +164,8 @@ router.post('/forgot-password', async (req, res) => {
     user.resetPasswordExpire = Date.now() + 3600000; // 1 hour
     await user.save();
 
-    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+    // Use environment variable, OR the origin of the request (Vercel domain), OR fallback to localhost
+    const clientUrl = process.env.CLIENT_URL || req.headers.origin || 'http://localhost:5173';
     const resetUrl = `${clientUrl}/reset-password/${resetToken}`;
 
     const message = `

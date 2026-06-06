@@ -48,6 +48,7 @@ const features = [
 export default function AuthScreen() {
   const { login, signup } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [formData, setFormData] = useState({ name: '', email: '', password: '' });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -61,7 +62,11 @@ export default function AuthScreen() {
     setSuccess('');
     setLoading(true);
     try {
-      if (isLogin) {
+      if (isForgotPassword) {
+        const res = await axios.post('/api/auth/forgot-password', { email: formData.email });
+        setSuccess(res.data.message || 'Password reset link sent.');
+        // Don't clear email so user can see what they entered
+      } else if (isLogin) {
         await login(formData.email, formData.password);
       } else {
         await signup(formData.name, formData.email, formData.password);
@@ -179,14 +184,14 @@ export default function AuthScreen() {
             {/* Tab Toggle */}
             <div className="flex bg-brand-900/60 rounded-2xl p-1 mb-8 border border-white/5">
               <button
-                onClick={() => { setIsLogin(true); setError(''); setSuccess(''); }}
-                className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${isLogin ? 'bg-brand-600 text-white shadow-lg shadow-brand-600/30' : 'text-gray-500 hover:text-gray-300'}`}
+                onClick={() => { setIsLogin(true); setIsForgotPassword(false); setError(''); setSuccess(''); }}
+                className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${isLogin && !isForgotPassword ? 'bg-brand-600 text-white shadow-lg shadow-brand-600/30' : 'text-gray-500 hover:text-gray-300'}`}
               >
                 Sign In
               </button>
               <button
-                onClick={() => { setIsLogin(false); setError(''); setSuccess(''); }}
-                className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${!isLogin ? 'bg-brand-600 text-white shadow-lg shadow-brand-600/30' : 'text-gray-500 hover:text-gray-300'}`}
+                onClick={() => { setIsLogin(false); setIsForgotPassword(false); setError(''); setSuccess(''); }}
+                className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${!isLogin && !isForgotPassword ? 'bg-brand-600 text-white shadow-lg shadow-brand-600/30' : 'text-gray-500 hover:text-gray-300'}`}
               >
                 Create Account
               </button>
@@ -195,12 +200,16 @@ export default function AuthScreen() {
             {/* Heading */}
             <div className="mb-6">
               <h3 className="text-2xl font-black text-white">
-                {isLogin ? 'Welcome back 👋' : 'Start your journey 🚀'}
+                {isForgotPassword 
+                  ? 'Reset Password 🔒'
+                  : isLogin ? 'Welcome back 👋' : 'Start your journey 🚀'}
               </h3>
               <p className="text-gray-400 text-sm mt-1">
-                {isLogin
-                  ? 'Enter your credentials to access your personalized dashboard.'
-                  : 'Create your free account and begin improving your English today.'}
+                {isForgotPassword
+                  ? 'Enter your email address and we will send you a link to reset your password.'
+                  : isLogin
+                    ? 'Enter your credentials to access your personalized dashboard.'
+                    : 'Create your free account and begin improving your English today.'}
               </p>
             </div>
 
@@ -218,7 +227,7 @@ export default function AuthScreen() {
 
             {/* Form */}
             <form onSubmit={handleSubmit} className="space-y-4">
-              {!isLogin && (
+              {!isLogin && !isForgotPassword && (
                 <div>
                   <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5 ml-1">Full Name</label>
                   <div className="relative">
@@ -248,19 +257,32 @@ export default function AuthScreen() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5 ml-1">Password</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <Lock className="h-4 w-4 text-gray-500" />
+              {!isForgotPassword && (
+                <div>
+                  <div className="flex items-center justify-between mb-1.5 ml-1">
+                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider">Password</label>
+                    {isLogin && (
+                      <button 
+                        type="button" 
+                        onClick={() => { setIsForgotPassword(true); setError(''); setSuccess(''); }}
+                        className="text-xs text-brand-400 hover:text-brand-300 font-bold transition-colors"
+                      >
+                        Forgot Password?
+                      </button>
+                    )}
                   </div>
-                  <input
-                    type="password" name="password" value={formData.password} onChange={handleChange} required
-                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-white placeholder-gray-500 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all"
-                    placeholder="••••••••"
-                  />
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                      <Lock className="h-4 w-4 text-gray-500" />
+                    </div>
+                    <input
+                      type="password" name="password" value={formData.password} onChange={handleChange} required
+                      className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-white placeholder-gray-500 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all"
+                      placeholder="••••••••"
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
 
               <button
                 type="submit"
@@ -271,14 +293,14 @@ export default function AuthScreen() {
                   <Loader2 className="w-5 h-5 animate-spin" />
                 ) : (
                   <>
-                    {isLogin ? 'Sign In to Dashboard' : 'Create Free Account'}
+                    {isForgotPassword ? 'Send Reset Link' : isLogin ? 'Sign In to Dashboard' : 'Create Free Account'}
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}
               </button>
             </form>
 
-            {!isLogin && (
+            {!isLogin && !isForgotPassword && (
               <p className="text-xs text-gray-500 text-center mt-4">
                 By creating an account, you agree to our{' '}
                 <span className="text-brand-400 cursor-pointer hover:underline">Terms of Service</span>.

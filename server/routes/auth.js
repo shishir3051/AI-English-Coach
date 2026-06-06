@@ -148,4 +148,74 @@ router.get('/me', protect, async (req, res) => {
   }
 });
 
+// @route   POST /api/auth/forgot-password
+// @desc    Send password reset email
+router.post('/forgot-password', async (req, res) => {
+  const { email } = req.body;
+  try {
+    const user = await User.findOne({ email });
+    if (!user) {
+      // Return 200 even if user not found to prevent email enumeration
+      return res.status(200).json({ message: 'If an account with that email exists, a password reset link has been sent.' });
+    }
+
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    user.resetPasswordToken = resetToken;
+    user.resetPasswordExpire = Date.now() + 3600000; // 1 hour
+    await user.save();
+
+    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+    const resetUrl = `${clientUrl}/reset-password/${resetToken}`;
+
+    const message = `
+      <h2>Password Reset Request</h2>
+      <p>You requested a password reset. Click the link below to set a new password:</p>
+      <a href="${resetUrl}" style="display:inline-block;padding:10px 20px;background-color:#6366f1;color:#ffffff;text-decoration:none;border-radius:5px;">Reset Password</a>
+      <p>If you did not request this, please ignore this email. The link will expire in 1 hour.</p>
+    `;
+
+    if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+      await sendEmail({
+        email: user.email,
+        subject: 'Lumina AI Coach - Password Reset',
+        html: message,
+      });
+      res.status(200).json({ message: 'If an account with that email exists, a password reset link has been sent.' });
+    } else {
+      console.log(`[MOCK EMAIL] Password Reset link: ${resetUrl}`);
+      res.status(200).json({ message: 'Password reset link generated. (Check server console since email is not configured).' });
+    }
+  } catch (error) {
+    res.status(500).json({ error: 'Server error', details: error.message });
+  }
+});
+
+// @route   POST /api/auth/reset-password/:token
+// @desc    Reset password
+router.post('/reset-password/:token', async (req, res) => {
+  const { password } = req.body;
+  const { token } = req.params;
+
+  try {
+    const user = await User.findOne({
+      resetPasswordToken: token,
+      resetPasswordExpire: { $gt: Date.now() },
+    });
+
+    if (!user) {
+      return res.status(400).json({ error: 'Invalid or expired reset token' });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(password, salt);
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpire = undefined;
+    await user.save();
+
+    res.json({ message: 'Password has been successfully reset. You can now log in.' });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error', details: error.message });
+  }
+});
+
 export default router;

@@ -25,6 +25,7 @@ import axios from 'axios';
 import { useAuth } from './context/AuthContext';
 import AuthScreen from './components/AuthScreen';
 import VerifyEmail from './components/VerifyEmail';
+import ResetPassword from './components/ResetPassword';
 import Dashboard from './components/Dashboard';
 import AICoach from './components/AICoach';
 import WritingChecker from './components/WritingChecker';
@@ -122,6 +123,12 @@ export default function App() {
   if (path.startsWith('/verify/')) {
     const token = path.split('/verify/')[1];
     return <VerifyEmail token={token} onVerified={() => window.location.href = '/'} />;
+  }
+
+  // Handle reset password route
+  if (path.startsWith('/reset-password/')) {
+    const token = path.split('/reset-password/')[1];
+    return <ResetPassword token={token} onResetSuccess={() => window.location.href = '/'} />;
   }
 
   // Force login if not authenticated

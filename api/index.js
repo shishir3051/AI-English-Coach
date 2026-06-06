@@ -91,15 +91,15 @@ app.use('/api/auth', authRoutes);
 app.use('/api/admin', protect, adminOnly, adminRoutes);
 
 // ─── Register routes ──────────────────────────────────────────────────────
-app.use('/api/coach',       coachRoutes);
-app.use('/api/progress',    progressRoutes);
-app.use('/api/grammar',     grammarRoutes);
-app.use('/api/challenges',  challengesRoutes);
-app.use('/api/coach-modes', coachModesRoutes);
-app.use('/api/words',       wordsRoutes);
-app.use('/api/sessions',    sessionsRoutes);
-app.use('/api/vocabulary',  vocabularyRoutes);
-app.use('/api/ielts',       ieltsRoutes);
+app.use('/api/coach',       protect, coachRoutes);
+app.use('/api/progress',    protect, progressRoutes);
+app.use('/api/grammar',     protect, grammarRoutes);
+app.use('/api/challenges',  protect, challengesRoutes);
+app.use('/api/coach-modes', protect, coachModesRoutes);
+app.use('/api/words',       protect, wordsRoutes);
+app.use('/api/sessions',    protect, sessionsRoutes);
+app.use('/api/vocabulary',  protect, vocabularyRoutes);
+app.use('/api/ielts',       protect, ieltsRoutes);
 
 // ─── Export for Vercel serverless ─────────────────────────────────────────
 export default app;

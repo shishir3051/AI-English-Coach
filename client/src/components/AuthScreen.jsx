@@ -46,11 +46,11 @@ const features = [
   },
 ];
 
-export default function AuthScreen() {
+export default function AuthScreen({ resetToken = null }) {
   const { login, signup } = useAuth();
-  const [isLogin, setIsLogin] = useState(true);
+  const [isLogin, setIsLogin] = useState(!resetToken);
   const [isForgotPassword, setIsForgotPassword] = useState(false);
-  const [formData, setFormData] = useState({ name: '', email: '', password: '' });
+  const [formData, setFormData] = useState({ name: '', email: '', password: '', confirmPassword: '' });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
@@ -61,9 +61,25 @@ export default function AuthScreen() {
     e.preventDefault();
     setError('');
     setSuccess('');
+
+    if (resetToken) {
+      if (formData.password !== formData.confirmPassword) {
+        setError('Passwords do not match');
+        return;
+      }
+      if (formData.password.length < 6) {
+        setError('Password must be at least 6 characters long');
+        return;
+      }
+    }
+
     setLoading(true);
     try {
-      if (isForgotPassword) {
+      if (resetToken) {
+        const res = await axios.post(`/api/auth/reset-password/${resetToken}`, { password: formData.password });
+        setSuccess(res.data.message || 'Password has been successfully reset. Redirecting...');
+        setTimeout(() => { window.location.href = '/'; }, 3000);
+      } else if (isForgotPassword) {
         const res = await axios.post('/api/auth/forgot-password', { email: formData.email });
         setSuccess(res.data.message || 'Password reset link sent.');
         // Don't clear email so user can see what they entered
@@ -183,34 +199,40 @@ export default function AuthScreen() {
           {/* Form Card */}
           <div className="glass-card rounded-3xl border border-white/10 p-8 shadow-2xl">
             {/* Tab Toggle */}
-            <div className="flex bg-brand-900/60 rounded-2xl p-1 mb-8 border border-white/5">
-              <button
-                onClick={() => { setIsLogin(true); setIsForgotPassword(false); setError(''); setSuccess(''); }}
-                className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${isLogin && !isForgotPassword ? 'bg-brand-600 text-white shadow-lg shadow-brand-600/30' : 'text-gray-500 hover:text-gray-300'}`}
-              >
-                Sign In
-              </button>
-              <button
-                onClick={() => { setIsLogin(false); setIsForgotPassword(false); setError(''); setSuccess(''); }}
-                className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${!isLogin && !isForgotPassword ? 'bg-brand-600 text-white shadow-lg shadow-brand-600/30' : 'text-gray-500 hover:text-gray-300'}`}
-              >
-                Create Account
-              </button>
-            </div>
+            {!resetToken && (
+              <div className="flex bg-brand-900/60 rounded-2xl p-1 mb-8 border border-white/5">
+                <button
+                  onClick={() => { setIsLogin(true); setIsForgotPassword(false); setError(''); setSuccess(''); }}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${isLogin && !isForgotPassword ? 'bg-brand-600 text-white shadow-lg shadow-brand-600/30' : 'text-gray-500 hover:text-gray-300'}`}
+                >
+                  Sign In
+                </button>
+                <button
+                  onClick={() => { setIsLogin(false); setIsForgotPassword(false); setError(''); setSuccess(''); }}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${!isLogin && !isForgotPassword ? 'bg-brand-600 text-white shadow-lg shadow-brand-600/30' : 'text-gray-500 hover:text-gray-300'}`}
+                >
+                  Create Account
+                </button>
+              </div>
+            )}
 
             {/* Heading */}
             <div className="mb-6">
               <h3 className="text-2xl font-black text-white">
-                {isForgotPassword 
-                  ? 'Reset Password 🔒'
-                  : isLogin ? 'Welcome back 👋' : 'Start your journey 🚀'}
+                {resetToken
+                  ? 'Set New Password 🔒'
+                  : isForgotPassword 
+                    ? 'Reset Password 🔒'
+                    : isLogin ? 'Welcome back 👋' : 'Start your journey 🚀'}
               </h3>
               <p className="text-gray-400 text-sm mt-1">
-                {isForgotPassword
-                  ? 'Enter your email address and we will send you a link to reset your password.'
-                  : isLogin
-                    ? 'Enter your credentials to access your personalized dashboard.'
-                    : 'Create your free account and begin improving your English today.'}
+                {resetToken
+                  ? 'Please enter your new password below.'
+                  : isForgotPassword
+                    ? 'Enter your email address and we will send you a link to reset your password.'
+                    : isLogin
+                      ? 'Enter your credentials to access your personalized dashboard.'
+                      : 'Create your free account and begin improving your English today.'}
               </p>
             </div>
 
@@ -228,7 +250,7 @@ export default function AuthScreen() {
 
             {/* Form */}
             <form onSubmit={handleSubmit} className="space-y-4">
-              {!isLogin && !isForgotPassword && (
+              {!isLogin && !isForgotPassword && !resetToken && (
                 <div>
                   <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5 ml-1">Full Name</label>
                   <div className="relative">
@@ -244,19 +266,21 @@ export default function AuthScreen() {
                 </div>
               )}
 
-              <div>
-                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5 ml-1">Email Address</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <Mail className="h-4 w-4 text-gray-500" />
+              {!resetToken && (
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5 ml-1">Email Address</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                      <Mail className="h-4 w-4 text-gray-500" />
+                    </div>
+                    <input
+                      type="email" name="email" value={formData.email} onChange={handleChange} required
+                      className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-white placeholder-gray-500 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all"
+                      placeholder="you@example.com"
+                    />
                   </div>
-                  <input
-                    type="email" name="email" value={formData.email} onChange={handleChange} required
-                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-white placeholder-gray-500 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all"
-                    placeholder="you@example.com"
-                  />
                 </div>
-              </div>
+              )}
 
               {!isForgotPassword && (
                 <div>
@@ -285,6 +309,22 @@ export default function AuthScreen() {
                 </div>
               )}
 
+              {resetToken && (
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5 ml-1">Confirm New Password</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                      <Lock className="h-4 w-4 text-gray-500" />
+                    </div>
+                    <input
+                      type="password" name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} required
+                      className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-white placeholder-gray-500 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all"
+                      placeholder="••••••••"
+                    />
+                  </div>
+                </div>
+              )}
+
               <button
                 type="submit"
                 disabled={loading}
@@ -294,18 +334,38 @@ export default function AuthScreen() {
                   <Loader2 className="w-5 h-5 animate-spin" />
                 ) : (
                   <>
-                    {isForgotPassword ? 'Send Reset Link' : isLogin ? 'Sign In to Dashboard' : 'Create Free Account'}
+                    {resetToken ? 'Reset Password' : isForgotPassword ? 'Send Reset Link' : isLogin ? 'Sign In to Dashboard' : 'Create Free Account'}
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}
               </button>
             </form>
 
-            {!isLogin && !isForgotPassword && (
+            {!isLogin && !isForgotPassword && !resetToken && (
               <p className="text-xs text-gray-500 text-center mt-4">
                 By creating an account, you agree to our{' '}
                 <span className="text-brand-400 cursor-pointer hover:underline">Terms of Service</span>.
               </p>
+            )}
+
+            {isForgotPassword && !resetToken && (
+              <div className="mt-6 text-center">
+                <button
+                  type="button"
+                  onClick={() => { setIsLogin(true); setIsForgotPassword(false); setError(''); setSuccess(''); }}
+                  className="text-sm text-brand-400 hover:text-brand-300 font-bold"
+                >
+                  Back to Sign In
+                </button>
+              </div>
+            )}
+            
+            {resetToken && (
+              <div className="mt-6 text-center">
+                <a href="/" className="text-sm text-brand-400 hover:text-brand-300 font-bold">
+                  Back to Sign In
+                </a>
+              </div>
             )}
           </div>
 
